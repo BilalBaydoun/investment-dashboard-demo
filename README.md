@@ -137,10 +137,22 @@ npm install
 cp .env.local.example .env.local
 ```
 
-3. Add your API keys to `.env.local`:
+3. Configure your `.env.local`:
 ```env
+# Required: Market data
 NEXT_PUBLIC_ALPHA_VANTAGE_KEY=your_key_here
+
+# Required: Login credentials
+AUTH_USERNAME=your_username
+AUTH_PASSWORD=your_secure_password
+SESSION_SECRET=any_random_string_at_least_32_characters_long
+
+# Optional: AI features
 OPENAI_API_KEY=your_key_here
+
+# Optional: Cross-device sync
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 4. Run the development server:
@@ -148,9 +160,70 @@ OPENAI_API_KEY=your_key_here
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000)
+5. Open [http://localhost:3000](http://localhost:3000) and log in with the username/password you set
 
 > The app works without API keys using the pre-seeded demo data. Add keys to enable live market data and AI features.
+
+## Authentication
+
+The app is protected by a login page. Credentials are set via environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `AUTH_USERNAME` | Your login username (default: `admin`) |
+| `AUTH_PASSWORD` | Your login password (default: `admin`) |
+| `SESSION_SECRET` | Random string used to sign session cookies — **change this in production** |
+
+**How it works:**
+- On login, the server creates an HMAC-signed session cookie (HTTP-only, 7-day expiry)
+- The middleware checks the cookie on every request and redirects to `/login` if invalid
+- No database needed — credentials are stored as environment variables
+
+**For Vercel deployment**, add these three variables in your Vercel project settings (Settings → Environment Variables).
+
+## Cross-Device Sync (Supabase)
+
+By default, all data (portfolios, watchlist, goals) is stored in the browser's `localStorage`. To sync data across devices, connect a Supabase database:
+
+### 1. Create a Supabase Project
+1. Go to [supabase.com](https://supabase.com) and create a free account
+2. Create a new project
+3. Copy your **Project URL** and **anon public key** from Settings → API
+
+### 2. Create the Database Table
+Run this SQL in the Supabase SQL Editor:
+
+```sql
+CREATE TABLE user_data (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  portfolios JSONB DEFAULT '[]',
+  transactions JSONB DEFAULT '[]',
+  watchlist JSONB DEFAULT '[]',
+  goal JSONB,
+  preferences JSONB DEFAULT '{}',
+  alerts JSONB DEFAULT '[]',
+  paper_trading JSONB,
+  saved_goals JSONB DEFAULT '[]',
+  active_goal_id TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Insert initial row
+INSERT INTO user_data (id) VALUES ('default');
+```
+
+### 3. Add Environment Variables
+Add to your `.env.local` (or Vercel environment variables):
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+```
+
+### 4. How Sync Works
+- The dashboard auto-syncs your data to Supabase on changes
+- When you open the app on another device, it pulls the latest data from Supabase
+- If Supabase is not configured, the app works normally with local storage only — no errors
 
 ## API Keys Setup
 
