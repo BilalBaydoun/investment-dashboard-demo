@@ -1,0 +1,47 @@
+name: Weekly Stock Scanner
+
+on:
+  schedule:
+    # Run every Sunday at 11pm UTC (6pm EST / 3pm PST)
+    - cron: '0 23 * * 0'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180 # 3 hour safety limit
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install tsx runner
+        run: npx tsx --version
+
+      - name: Run weekly scanner
+        env:
+          ALPHA_VANTAGE_KEY: ${{ secrets.ALPHA_VANTAGE_KEY }}
+        run: npm run scanner
+
+      - name: Commit and push results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/weekly-analysis.json
+          git diff --staged --quiet || git commit -m "chore: weekly scanner results $(date -u +%Y-%m-%d)"
+          git push
