@@ -12,44 +12,74 @@ An AI-powered investment portfolio dashboard built with Next.js, React, and Type
 - Real-time portfolio value and P&L calculations
 - Multiple portfolio support
 - Export/import functionality
+- Cash balance management with deposits/withdrawals
+- Historical snapshots and performance tracking
 
-### Market Data (Alpha Vantage)
-- Real-time stock quotes
-- Cryptocurrency prices
-- Interactive price charts with multiple timeframes
-- Technical indicators (RSI, MACD, Moving Averages, Bollinger Bands, Stochastic, ADX, ATR)
-- Financial news with sentiment analysis
-- Commodity prices (Gold, Silver, Platinum, Palladium)
+### AI-Powered Deep Analysis
+- **Fundamental Score** — Buffett-style 100-point scoring system evaluating profitability, valuation, financial health, growth, analyst consensus, dividends, and 52-week position
+- **Fair Value Estimation** — Multiple valuation methods (DCF, Graham, P/E-based, analyst targets) with upside/downside calculation
+- **Technical Indicators** — RSI gauge, MACD with histogram, ADX trend strength, SMA (20/50/200), EMA (12/26), Bollinger Bands, Stochastic, ATR — with bullish/bearish signal summary
+- **Profitability & Moat Analysis** — ROE, ROA, profit margin, operating margin with quality labels
+- **Earnings Tracking** — Beat rate, EPS history, next earnings date, surprise analysis
+- **Insider Trades** — Recent buy/sell activity from company insiders
+- **Analyst Ratings** — Consensus breakdown (Strong Buy → Strong Sell) with target price
+- **Ownership & Short Interest** — Insider %, institutional %, short float, short ratio
 
-### AI-Powered Analysis (OpenAI)
-- Buy/sell signal generation with confidence scores
-- Portfolio optimization recommendations
-- News sentiment analysis
+### AI Chat & Recommendations (OpenAI)
 - Interactive AI chat for investment questions
+- Portfolio optimization recommendations
+- Buy/sell signal generation with confidence scores
+- News sentiment analysis
 - Risk assessment and diversification scoring
 
-### Weekly Stock Scanner Agent (Planned)
-- Automated weekly scan of all ~6,000 US stocks
-- Phase 1: Fetch all tickers via LISTING_STATUS endpoint
-- Phase 2: Fundamentals screen via OVERVIEW (~80 min at 75 calls/min)
-- Phase 3: Deep technical analysis on top 300 candidates (~40 min)
-- Results cached locally for instant dashboard loading
-- Buy/sell recommendations with confidence scores
-- Hidden gems detection (undervalued mid/small caps)
-- Sector breakdown and week-over-week changes
+### Weekly Stock Scanner Agent
+An automated GitHub Actions agent that scans the entire US stock market every Sunday:
+
+1. **Phase 1 — Ticker Discovery**: Downloads all ~7,500 active US tickers via Alpha Vantage `LISTING_STATUS`
+2. **Phase 2 — Fundamental Screening** (~80 min): Fetches company fundamentals (P/E, ROE, margins, growth, analyst targets) for every ticker at 75 calls/min, scores each stock using a weighted scoring algorithm
+3. **Phase 3 — Technical Deep Dive** (~40 min): Runs RSI, MACD, SMA, EMA, ADX, Bollinger Bands, and Stochastic analysis on the top 300 candidates
+4. **Output**: Generates `weekly-analysis.json` with ranked recommendations
+
+**What the scanner produces:**
+- Top 50 "Strong Buy" stocks with buy scores, target prices, and upside potential
+- Top 50 "Hidden Gems" — undervalued mid/small caps not on most radars
+- Sector breakdown with top picks per sector
+- Detailed scoring breakdown (valuation, growth, profitability, momentum, analyst sentiment)
+- Risk flags and reasons to consider for each pick
+
+**How it runs:**
+- Triggered automatically via GitHub Actions cron (every Sunday at 11pm UTC)
+- Can also be triggered manually from the GitHub Actions UI
+- Uses checkpoint/resume so it can recover from interruptions
+- Results are committed to the repo and loaded by the dashboard with zero additional API calls
 
 ### Dashboard Widgets
-- Portfolio value with time-based changes
-- Asset allocation pie chart
-- Top movers (gainers/losers)
-- Performance vs S&P 500 benchmark
+- Portfolio value hero with total gain/loss and today's change
+- Asset allocation pie chart (stocks, crypto, ETFs, bonds, commodities)
+- Performance vs S&P 500 benchmark chart with 24h client-side caching
+- Top movers — today's gainers and losers in your portfolio
 - Market Fear & Greed Index
-- Goal tracking
+- Goal tracking with progress bars
 - Recent transactions
+- Earnings calendar for upcoming portfolio events
+- Dividend tracker
+- Price alerts
+- Market news with sentiment tags
+- AI-generated market insights
+
+### Additional Tools
+- **Stock Comparison** — Side-by-side analysis of multiple stocks
+- **Portfolio Rebalancer** — Target allocation vs actual with rebalance suggestions
+- **Tax Calculator** — Estimated capital gains/losses
+- **Paper Trading** — Practice trading without real money
+- **Backtesting** — Test strategies against historical data
+- **Correlation Matrix** — See how your holdings move together
+- **Sector Heatmap** — Visual sector allocation and performance
+- **Learning Center** — Educational content on investing concepts
 
 ### Watchlist
 - Track potential investments
-- Set price alerts
+- Set price alerts with notifications
 - Quick AI analysis access
 - Notes and target prices
 
@@ -58,11 +88,13 @@ An AI-powered investment portfolio dashboard built with Next.js, React, and Type
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS + shadcn/ui
-- **State Management**: Zustand
+- **State Management**: Zustand (persisted to localStorage)
 - **Charts**: Recharts
 - **AI**: OpenAI GPT-4
 - **Market Data**: Alpha Vantage (stocks, crypto, news, technicals, fundamentals)
 - **Sentiment**: Alternative.me Fear & Greed Index (free, no key)
+- **CI/CD**: GitHub Actions (weekly scanner agent)
+- **Deployment**: Vercel
 
 ## API Architecture
 
@@ -118,6 +150,8 @@ npm run dev
 
 5. Open [http://localhost:3000](http://localhost:3000)
 
+> The app works without API keys using the pre-seeded demo data. Add keys to enable live market data and AI features.
+
 ## API Keys Setup
 
 ### Alpha Vantage (All Market Data)
@@ -131,62 +165,47 @@ npm run dev
 2. Create an account and add payment method
 3. Generate an API key
 
-## Weekly Scanner Agent
-
-The planned weekly scanner agent will automatically analyze all US stocks:
-
-### How It Works
-1. **Sunday evening**: Agent starts automated scan
-2. **Phase 1** (instant): Downloads all ~6,000 US tickers via `LISTING_STATUS`
-3. **Phase 2** (~80 min): Fetches fundamentals for each stock via `OVERVIEW` at 75 calls/min
-4. **Phase 3** (~40 min): Deep technical analysis (RSI, MACD, SMA, etc.) on top 300 candidates
-5. **Output**: `weekly-analysis.json` with ranked recommendations
-
-### Requirements
-- Alpha Vantage Basic plan ($49.99/mo) for 75 calls/min
-- Total runtime: ~2 hours weekly
-- Results cached locally — dashboard loads instantly with zero API calls
-
-### Output Format
-- Top 50 "Strong Buy" recommendations
-- Top 50 "Hidden Gems" (undervalued mid/small caps)
-- Sector breakdown with top picks per sector
-- Week-over-week score changes
-- New entries and exits from the list
-
 ## Project Structure
 
 ```
 /src
 ├── /app                    # Next.js App Router
 │   ├── /api               # API routes
-│   │   ├── /stocks        # Stock quotes, history, technicals (Alpha Vantage)
-│   │   ├── /crypto        # Cryptocurrency data (Alpha Vantage)
-│   │   ├── /news          # Financial news + sentiment (Alpha Vantage)
-│   │   ├── /fundamentals  # Company fundamentals (Alpha Vantage)
-│   │   ├── /earnings      # Earnings data (Alpha Vantage)
-│   │   ├── /screener      # Stock screener (Alpha Vantage)
-│   │   ├── /sentiment     # Fear & Greed Index (Alternative.me)
-│   │   ├── /commodities   # Precious metals (Alpha Vantage)
-│   │   ├── /dividends     # Dividend tracking (Alpha Vantage + local data)
-│   │   ├── /sectors       # Sector allocation (Alpha Vantage + local data)
-│   │   ├── /insider       # Insider trading (Yahoo Finance fallback)
-│   │   └── /ai            # AI analysis (OpenAI)
+│   │   ├── /stocks        # Stock quotes, history, technicals
+│   │   ├── /analysis      # Deep stock analysis (fundamentals + technicals + scoring)
+│   │   ├── /crypto        # Cryptocurrency data
+│   │   ├── /news          # Financial news + sentiment
+│   │   ├── /fundamentals  # Company fundamentals
+│   │   ├── /earnings      # Earnings data & calendar
+│   │   ├── /screener      # Stock screener
+│   │   ├── /sentiment     # Fear & Greed Index
+│   │   ├── /commodities   # Precious metals
+│   │   ├── /dividends     # Dividend tracking
+│   │   ├── /sectors       # Sector allocation
+│   │   ├── /insider       # Insider trading activity
+│   │   └── /ai            # AI analysis, chat, recommendations
 │   ├── /(dashboard)       # Dashboard pages
 │   └── page.tsx           # Landing page
 ├── /components
 │   ├── /ui                # shadcn components
-│   ├── /layout            # Layout components
-│   ├── /charts            # Chart components
-│   ├── /portfolio         # Portfolio components
+│   ├── /layout            # Header, Sidebar
+│   ├── /charts            # Performance & price charts
+│   ├── /portfolio         # Position management
 │   ├── /dashboard         # Dashboard widgets
-│   └── /ai                # AI components
+│   └── /ai                # AI analysis, chat, sentiment
 ├── /hooks                 # Custom React hooks
-├── /store                 # Zustand stores
+├── /store                 # Zustand stores (portfolio, goals, watchlist, etc.)
 ├── /types                 # TypeScript types
 └── /lib
     ├── /api               # API client functions
+    ├── /cache             # Rate limiter & ticker cache
     └── /ai                # AI prompts & logic
+
+/scripts
+└── /scanner               # Weekly stock scanner agent
+    ├── index.ts           # Main entry point
+    ├── /phases            # Fetch tickers → Fundamentals → Technicals
+    └── /lib               # Alpha Vantage client, scoring algorithm, types
 ```
 
 ## Available Scripts
@@ -196,6 +215,7 @@ npm run dev      # Start development server
 npm run build    # Build for production
 npm run start    # Start production server
 npm run lint     # Run ESLint
+npm run scanner  # Run weekly stock scanner manually
 ```
 
 ## Routes
@@ -203,11 +223,20 @@ npm run lint     # Run ESLint
 | Route | Description |
 |-------|-------------|
 | `/` | Landing page |
-| `/dashboard` | Main portfolio overview |
-| `/portfolio` | Manage positions |
-| `/analysis` | AI deep analysis |
-| `/watchlist` | Track potential buys |
-| `/settings` | API keys, preferences |
+| `/dashboard` | Main portfolio overview with widgets |
+| `/portfolio` | Manage positions and transactions |
+| `/analysis` | AI deep analysis (fundamentals, technicals, scoring) |
+| `/watchlist` | Track potential investments |
+| `/calendar` | Earnings calendar and events |
+| `/goals` | Financial goal setting with Monte Carlo simulation |
+| `/compare` | Side-by-side stock comparison |
+| `/rebalance` | Portfolio rebalancing tool |
+| `/tools` | Paper trading, backtesting, correlation matrix |
+| `/tax` | Tax estimation calculator |
+| `/learn` | Investment education center |
+| `/transactions` | Full transaction history |
+| `/recommendations` | AI-powered stock recommendations |
+| `/settings` | API keys and preferences |
 
 ## Disclaimer
 
