@@ -2,7 +2,9 @@
 
 An AI-powered investment portfolio dashboard built with Next.js, React, and TypeScript. Track your investments, get intelligent buy/sell signals, and receive personalized recommendations to achieve your financial goals.
 
-> **Note:** This repo includes demo portfolio data (AAPL, MSFT, NVDA, etc.) so the dashboard is populated out of the box. To use with live data, add your own API keys in `.env.local`.
+> **Live Demo:** [demo.bilalbaydoun.me](https://demo.bilalbaydoun.me) — Username: `demo` / Password: `demo`
+
+> This repo includes demo portfolio data (AAPL, MSFT, NVDA, etc.) so the dashboard is populated out of the box. To use with live data, add your own API keys in `.env.local`.
 
 ## Features
 
