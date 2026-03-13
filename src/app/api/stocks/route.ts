@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCachedData, setCachedData, getCacheStats, clearCache } from '@/lib/cache/tickerCache';
+import { getCachedData, getStaleCachedData, setCachedData, getCacheStats, clearCache } from '@/lib/cache/tickerCache';
+
+// Prevent Vercel edge caching — always run fresh
+export const dynamic = 'force-dynamic';
 
 const ALPHA_VANTAGE_KEY = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_KEY || process.env.ALPHA_VANTAGE_API_KEY || process.env.ALPHA_VANTAGE_KEY || '';
 
@@ -267,7 +270,7 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ success: false, error: 'Symbol required' }, { status: 400 });
         }
 
-        // Always fetch fresh quote data (no caching for live prices)
+        // Fetch fresh quote data
         const avQuote = await fetchAVQuote(symbol, avApiKey);
         if (avQuote) {
           // Only fetch 52-week high/low when explicitly requested
@@ -275,7 +278,6 @@ export async function GET(request: NextRequest) {
           let fiftyTwoWeekLow = avQuote.low;
 
           if (includeHistorical) {
-            // Check cache for historical data
             const cachedHistory = getCachedData<any[]>(symbol, 'history', '1Y');
             let historicalData = cachedHistory;
 
@@ -310,9 +312,21 @@ export async function GET(request: NextRequest) {
             source: 'Alpha Vantage',
           };
 
+          // Cache fresh quote for fallback
+          setCachedData(symbol, 'quote', quoteData);
+
           return NextResponse.json({
             success: true,
             data: quoteData,
+          });
+        }
+
+        // API failed — fall back to cached data (stale OK)
+        const cachedQuote = getStaleCachedData<any>(symbol, 'quote');
+        if (cachedQuote) {
+          return NextResponse.json({
+            success: true,
+            data: { ...cachedQuote, stale: true },
           });
         }
 
@@ -329,11 +343,11 @@ export async function GET(request: NextRequest) {
 
         const quotes: Record<string, any> = {};
 
-        // Sequential GLOBAL_QUOTE calls per symbol
+        // Sequential GLOBAL_QUOTE calls per symbol, with cache fallback
         for (const sym of symbols) {
           const avQuote = await fetchAVQuote(sym, avApiKey);
           if (avQuote) {
-            quotes[sym] = {
+            const quoteData = {
               symbol: sym,
               name: STOCK_NAMES[sym] || avQuote.symbol,
               price: avQuote.price,
@@ -344,6 +358,15 @@ export async function GET(request: NextRequest) {
               assetType: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'VOO'].includes(sym) ? 'etf' : 'stock',
               timestamp: new Date(avQuote.latestTradingDay),
             };
+            quotes[sym] = quoteData;
+            // Cache the fresh quote for fallback
+            setCachedData(sym, 'quote', quoteData);
+          } else {
+            // API failed — try cached data as fallback (stale OK)
+            const cached = getStaleCachedData<any>(sym, 'quote');
+            if (cached) {
+              quotes[sym] = { ...cached, stale: true };
+            }
           }
         }
 

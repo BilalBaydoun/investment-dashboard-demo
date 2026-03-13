@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const AV_BASE = 'https://www.alphavantage.co/query';
 
 // Precious metals use CURRENCY_EXCHANGE_RATE with these codes

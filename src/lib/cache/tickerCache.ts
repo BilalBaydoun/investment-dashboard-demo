@@ -3,7 +3,8 @@ import path from 'path';
 
 // Cache configuration (in milliseconds)
 const CACHE_CONFIG = {
-  quote: 30 * 60 * 1000,        // 30 minutes for real-time quotes
+  quote: 2 * 60 * 1000,             // 2 minutes for real-time quotes
+  quote_stale: 24 * 60 * 60 * 1000, // 24 hours for fallback (when API fails)
   history_1D: 2 * 60 * 60 * 1000,   // 2 hours for 1D/1W historical
   history_1W: 2 * 60 * 60 * 1000,
   history_1M: 12 * 60 * 60 * 1000,  // 12 hours for 1M historical
@@ -82,6 +83,27 @@ export function getCachedData<T>(symbol: string, type: 'quote' | 'history', rang
     return null;
   } catch (error) {
     console.error('Cache read error:', error);
+    return null;
+  }
+}
+
+// Get stale cached data (longer TTL, used as fallback when API fails)
+export function getStaleCachedData<T>(symbol: string, type: 'quote' | 'history', range?: string): T | null {
+  try {
+    ensureCacheDir();
+    const filePath = getCacheFilePath(symbol, type, range);
+    if (!fs.existsSync(filePath)) return null;
+
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    const cacheEntry: CacheEntry<T> = JSON.parse(fileContent);
+
+    // Use extended stale TTL for quotes (24h), normal TTL for history
+    const staleTTL = type === 'quote' ? CACHE_CONFIG.quote_stale : getTTL(type, range) * 2;
+    if (Date.now() - cacheEntry.timestamp < staleTTL) {
+      return cacheEntry.data;
+    }
+    return null;
+  } catch {
     return null;
   }
 }

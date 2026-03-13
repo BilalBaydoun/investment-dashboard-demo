@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCachedData, setCachedData } from '@/lib/cache/tickerCache';
+import { getCachedData, getStaleCachedData, setCachedData } from '@/lib/cache/tickerCache';
+
+export const dynamic = 'force-dynamic';
 
 const AV_BASE = 'https://www.alphavantage.co/query';
 
@@ -79,11 +81,15 @@ export async function GET(request: NextRequest) {
         const data = await response.json();
 
         if (isErrorResponse(data)) {
+          const stale = getStaleCachedData<any>(cacheKey, 'quote');
+          if (stale) return NextResponse.json({ success: true, data: { ...stale, stale: true } });
           return NextResponse.json({ success: false, error: 'API rate limit or error' }, { status: 429 });
         }
 
         const rateData = data['Realtime Currency Exchange Rate'];
         if (!rateData) {
+          const stale = getStaleCachedData<any>(cacheKey, 'quote');
+          if (stale) return NextResponse.json({ success: true, data: { ...stale, stale: true } });
           return NextResponse.json({ success: false, error: 'No data available' }, { status: 404 });
         }
 
@@ -142,31 +148,41 @@ export async function GET(request: NextRequest) {
         for (const sym of symbols) {
           if (!CRYPTO_NAMES[sym]) continue;
 
-          const response = await fetch(
-            `${AV_BASE}?function=CURRENCY_EXCHANGE_RATE&from_currency=${sym}&to_currency=USD&apikey=${apiKey}`
-          );
-          const data = await response.json();
+          try {
+            const response = await fetch(
+              `${AV_BASE}?function=CURRENCY_EXCHANGE_RATE&from_currency=${sym}&to_currency=USD&apikey=${apiKey}`
+            );
+            const data = await response.json();
 
-          if (isErrorResponse(data)) continue;
-
-          const rateData = data['Realtime Currency Exchange Rate'];
-          if (rateData) {
-            const price = parseFloat(rateData['5. Exchange Rate']);
-            quotes[sym] = {
-              symbol: sym,
-              name: CRYPTO_NAMES[sym] || sym,
-              price,
-              change: 0,
-              changePercent: 0,
-              previousClose: price,
-              volume: 0,
-              marketCap: CRYPTO_MARKET_CAPS[sym] || 0,
-              assetType: 'crypto',
-              timestamp: new Date(),
-            };
+            if (!isErrorResponse(data)) {
+              const rateData = data['Realtime Currency Exchange Rate'];
+              if (rateData) {
+                const price = parseFloat(rateData['5. Exchange Rate']);
+                const quoteData = {
+                  symbol: sym,
+                  name: CRYPTO_NAMES[sym] || sym,
+                  price,
+                  change: 0,
+                  changePercent: 0,
+                  previousClose: price,
+                  volume: 0,
+                  marketCap: CRYPTO_MARKET_CAPS[sym] || 0,
+                  assetType: 'crypto',
+                  timestamp: new Date(),
+                };
+                quotes[sym] = quoteData;
+                setCachedData(`CRYPTO_${sym}`, 'quote', quoteData);
+              }
+            } else {
+              // API failed — try stale cache
+              const stale = getStaleCachedData<any>(`CRYPTO_${sym}`, 'quote');
+              if (stale) quotes[sym] = { ...stale, stale: true };
+            }
+          } catch {
+            const stale = getStaleCachedData<any>(`CRYPTO_${sym}`, 'quote');
+            if (stale) quotes[sym] = { ...stale, stale: true };
           }
 
-          // Small delay to respect rate limits
           await new Promise(resolve => setTimeout(resolve, 250));
         }
 
