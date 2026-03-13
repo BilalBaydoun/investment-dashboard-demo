@@ -35,7 +35,7 @@ async function fetchYahooQuote(symbol: string): Promise<{
 } | null> {
   try {
     const res = await fetch(
-      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`,
       { headers: { 'User-Agent': 'Mozilla/5.0' } }
     );
     if (!res.ok) return null;
@@ -137,7 +137,7 @@ async function fetchAVQuote(symbol: string, apiKey: string) {
     if (!gq || Object.keys(gq).length === 0) return null;
 
     const latestTradingDay = gq['07. latest trading day'];
-    const previousClose = parseFloat(gq['08. previous close']);
+    let previousClose = parseFloat(gq['08. previous close']);
     let price = parseFloat(gq['05. price']);
     let change = parseFloat(gq['09. change']);
     let changePercent = parseFloat(gq['10. change percent']?.replace('%', '') || '0');
@@ -149,9 +149,14 @@ async function fetchAVQuote(symbol: string, apiKey: string) {
     // If GLOBAL_QUOTE is stale (not today) and market is open, try intraday then Yahoo
     const today = getTodayET();
     if (latestTradingDay !== today && isMarketHours()) {
+      // The stale GLOBAL_QUOTE's `price` is actually yesterday's CLOSE —
+      // that's the correct "previousClose" for computing today's change.
+      const yesterdayClose = price; // GQ price = stale day's closing price
+
       const intraday = await fetchIntradayPrice(symbol, apiKey);
       if (intraday) {
         price = intraday.price;
+        previousClose = yesterdayClose;
         change = price - previousClose;
         changePercent = previousClose > 0 ? (change / previousClose) * 100 : 0;
         high = intraday.high;
