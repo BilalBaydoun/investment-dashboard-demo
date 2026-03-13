@@ -249,12 +249,50 @@ async function fetchAVHistory(symbol: string, range: string, apiKey: string) {
       case 'ALL': days = 365 * 10; break;
     }
 
+    const isIntraday = range === '1D' || range === '1W';
+
+    if (isIntraday) {
+      // For intraday data, keep full datetime and filter by trading day(s)
+      const allEntries = Object.entries(timeSeries)
+        .map(([dateStr, values]: [string, any]) => ({
+          date: dateStr, // keep full "YYYY-MM-DD HH:MM:SS"
+          dayKey: dateStr.split(' ')[0],
+          open: parseFloat(values['1. open']),
+          high: parseFloat(values['2. high']),
+          low: parseFloat(values['3. low']),
+          close: parseFloat(values['4. close']),
+          volume: parseInt(values['5. volume'], 10),
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      if (allEntries.length === 0) return null;
+
+      // Get unique trading days (sorted ascending)
+      const tradingDays = [...new Set(allEntries.map(e => e.dayKey))].sort();
+
+      if (range === '1D') {
+        // Show the last trading day's intraday data (works when market is closed)
+        const lastDay = tradingDays[tradingDays.length - 1];
+        const dayEntries = allEntries
+          .filter(e => e.dayKey === lastDay)
+          .map(({ dayKey, ...rest }) => rest);
+        return dayEntries.length > 0 ? dayEntries : null;
+      } else {
+        // 1W: show last 5 trading days
+        const recentDays = tradingDays.slice(-5);
+        const weekEntries = allEntries
+          .filter(e => recentDays.includes(e.dayKey))
+          .map(({ dayKey, ...rest }) => rest);
+        return weekEntries.length > 0 ? weekEntries : null;
+      }
+    }
+
     const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     // Convert to sorted array (ascending by date)
     const entries = Object.entries(timeSeries)
       .map(([dateStr, values]: [string, any]) => ({
-        date: dateStr.split(' ')[0], // handle intraday datetime strings
+        date: dateStr,
         open: parseFloat(values['1. open']),
         high: parseFloat(values['2. high']),
         low: parseFloat(values['3. low']),
