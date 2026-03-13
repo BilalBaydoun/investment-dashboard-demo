@@ -62,6 +62,14 @@ export default function WatchlistPage() {
     notes: '',
   });
 
+  // Auto-search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ symbol: string; name: string; type: AssetType }[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   const { items, addItem, removeItem, toggleAlert } = useWatchlistStore();
 
   // Track notification permission and sent alerts
@@ -212,9 +220,81 @@ export default function WatchlistPage() {
       targetPrice: '',
       notes: '',
     });
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchResults(false);
     setShowAddDialog(false);
     toast.success('Added to watchlist');
   };
+
+  // Auto-search when typing in symbol field
+  const handleSymbolSearch = useCallback((query: string) => {
+    setSearchQuery(query);
+    setFormData(prev => ({ ...prev, symbol: query.toUpperCase() }));
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (query.length < 1) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    setIsSearching(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const results: { symbol: string; name: string; type: AssetType }[] = [];
+
+        // Search stocks and crypto in parallel
+        const [stockRes, cryptoRes] = await Promise.all([
+          fetch(`/api/stocks?action=search&query=${encodeURIComponent(query)}`).then(r => r.json()).catch(() => null),
+          fetch(`/api/crypto?action=search&query=${encodeURIComponent(query)}`).then(r => r.json()).catch(() => null),
+        ]);
+
+        if (stockRes?.success && stockRes.data) {
+          stockRes.data.slice(0, 6).forEach((item: any) => {
+            const type: AssetType = item.type === '4' || item.name?.toLowerCase().includes('etf') ? 'etf' : 'stock';
+            results.push({ symbol: item.symbol || item['1. symbol'], name: item.name || item['2. name'], type });
+          });
+        }
+
+        if (cryptoRes?.success && cryptoRes.data) {
+          cryptoRes.data.slice(0, 4).forEach((item: any) => {
+            results.push({ symbol: item.symbol, name: item.name, type: 'crypto' });
+          });
+        }
+
+        setSearchResults(results);
+        setShowSearchResults(results.length > 0);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  }, []);
+
+  const handleSelectSearchResult = useCallback((result: { symbol: string; name: string; type: AssetType }) => {
+    setFormData(prev => ({
+      ...prev,
+      symbol: result.symbol,
+      name: result.name,
+      assetType: result.type,
+    }));
+    setShowSearchResults(false);
+    setSearchQuery(result.symbol);
+  }, []);
+
+  // Close search results when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSearchResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleRemoveItem = (id: string) => {
     removeItem(id);
@@ -467,16 +547,67 @@ export default function WatchlistPage() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="symbol">Symbol *</Label>
+            {/* Symbol search with auto-detect */}
+            <div className="space-y-2" ref={searchContainerRef}>
+              <Label htmlFor="symbol">Search Symbol or Name *</Label>
+              <div className="relative">
                 <Input
                   id="symbol"
-                  placeholder="AAPL"
-                  value={formData.symbol}
-                  onChange={(e) =>
-                    setFormData({ ...formData, symbol: e.target.value.toUpperCase() })
-                  }
+                  placeholder="Search AAPL, Bitcoin, Tesla..."
+                  value={searchQuery || formData.symbol}
+                  onChange={(e) => handleSymbolSearch(e.target.value)}
+                  onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
+                  autoComplete="off"
+                />
+                {isSearching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+                {/* Search results dropdown */}
+                {showSearchResults && searchResults.length > 0 && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-md max-h-[240px] overflow-y-auto">
+                    {searchResults.map((result, i) => (
+                      <button
+                        key={`${result.symbol}-${i}`}
+                        type="button"
+                        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted transition-colors text-sm"
+                        onClick={() => handleSelectSearchResult(result)}
+                      >
+                        <Badge variant="outline" className={cn(
+                          'text-[10px] h-5 w-14 justify-center flex-shrink-0',
+                          result.type === 'crypto' ? 'border-amber-500/50 text-amber-500' :
+                          result.type === 'etf' ? 'border-purple-500/50 text-purple-500' :
+                          'border-blue-500/50 text-blue-500'
+                        )}>
+                          {result.type.toUpperCase()}
+                        </Badge>
+                        <span className="font-mono font-semibold">{result.symbol}</span>
+                        <span className="text-muted-foreground truncate">{result.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Show selected asset info */}
+              {formData.name && formData.symbol && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline" className="text-[10px] h-4">
+                    {formData.assetType.toUpperCase()}
+                  </Badge>
+                  <span>{formData.symbol} — {formData.name}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  placeholder="Auto-detected"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -499,16 +630,6 @@ export default function WatchlistPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="name">Name (optional)</Label>
-              <Input
-                id="name"
-                placeholder="Apple Inc."
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
             </div>
 
             <div className="space-y-2">
