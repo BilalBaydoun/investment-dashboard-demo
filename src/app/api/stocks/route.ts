@@ -35,6 +35,52 @@ function checkAVError(data: any): string | null {
   return null;
 }
 
+// Get today's date in YYYY-MM-DD format (US Eastern time)
+function getTodayET(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+// Check if US market is likely open (weekday, ~9:30 AM - 4 PM ET)
+function isMarketHours(): boolean {
+  const now = new Date();
+  const etTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const day = etTime.getDay();
+  const hour = etTime.getHours();
+  const min = etTime.getMinutes();
+  const timeInMin = hour * 60 + min;
+  // Weekday between 9:00 and 16:30 ET (wider window to catch pre/post updates)
+  return day >= 1 && day <= 5 && timeInMin >= 540 && timeInMin <= 990;
+}
+
+// Fetch latest intraday price from TIME_SERIES_INTRADAY
+async function fetchIntradayPrice(symbol: string, apiKey: string): Promise<{ price: number; high: number; low: number; volume: number } | null> {
+  try {
+    const response = await fetch(
+      `${AV_BASE_URL}?function=TIME_SERIES_INTRADAY&symbol=${encodeURIComponent(symbol)}&interval=5min&outputsize=compact&apikey=${apiKey}`
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data['Error Message'] || data['Note'] || data['Information']) return null;
+
+    const timeSeries = data['Time Series (5min)'];
+    if (!timeSeries) return null;
+
+    // Get the most recent data point
+    const latestTime = Object.keys(timeSeries)[0];
+    if (!latestTime) return null;
+
+    const latest = timeSeries[latestTime];
+    return {
+      price: parseFloat(latest['4. close']),
+      high: parseFloat(latest['2. high']),
+      low: parseFloat(latest['3. low']),
+      volume: parseInt(latest['5. volume'], 10),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Alpha Vantage API helper functions
 async function fetchAVQuote(symbol: string, apiKey: string) {
   if (!apiKey) return null;
@@ -51,17 +97,42 @@ async function fetchAVQuote(symbol: string, apiKey: string) {
     }
     const gq = data['Global Quote'];
     if (!gq || Object.keys(gq).length === 0) return null;
+
+    const latestTradingDay = gq['07. latest trading day'];
+    const previousClose = parseFloat(gq['08. previous close']);
+    let price = parseFloat(gq['05. price']);
+    let change = parseFloat(gq['09. change']);
+    let changePercent = parseFloat(gq['10. change percent']?.replace('%', '') || '0');
+    let open = parseFloat(gq['02. open']);
+    let high = parseFloat(gq['03. high']);
+    let low = parseFloat(gq['04. low']);
+    let volume = parseInt(gq['06. volume'], 10);
+
+    // If GLOBAL_QUOTE is stale (not today) and market is open, fetch intraday
+    const today = getTodayET();
+    if (latestTradingDay !== today && isMarketHours()) {
+      const intraday = await fetchIntradayPrice(symbol, apiKey);
+      if (intraday) {
+        price = intraday.price;
+        change = price - previousClose;
+        changePercent = previousClose > 0 ? (change / previousClose) * 100 : 0;
+        high = intraday.high;
+        low = intraday.low;
+        volume = intraday.volume;
+      }
+    }
+
     return {
       symbol: gq['01. symbol'],
-      open: parseFloat(gq['02. open']),
-      high: parseFloat(gq['03. high']),
-      low: parseFloat(gq['04. low']),
-      price: parseFloat(gq['05. price']),
-      volume: parseInt(gq['06. volume'], 10),
-      latestTradingDay: gq['07. latest trading day'],
-      previousClose: parseFloat(gq['08. previous close']),
-      change: parseFloat(gq['09. change']),
-      changePercent: parseFloat(gq['10. change percent']?.replace('%', '') || '0'),
+      open,
+      high,
+      low,
+      price,
+      volume,
+      latestTradingDay: latestTradingDay !== today && isMarketHours() ? today : latestTradingDay,
+      previousClose,
+      change,
+      changePercent,
     };
   } catch (error) {
     console.error('Alpha Vantage quote error:', error);
