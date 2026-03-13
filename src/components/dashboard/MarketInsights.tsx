@@ -128,8 +128,8 @@ export function MarketInsights() {
 
   useEffect(() => {
     fetchInsights();
-    // Refresh every 15 minutes
-    const interval = setInterval(fetchInsights, 15 * 60 * 1000);
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchInsights, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

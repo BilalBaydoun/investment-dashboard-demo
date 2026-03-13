@@ -73,6 +73,8 @@ export function DividendTracker() {
     };
 
     fetchDividendIncome();
+    const interval = setInterval(fetchDividendIncome, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [positions.map(p => `${p.symbol}:${p.quantity}`).join(',')]);
 
   const getDaysUntilExDate = (exDate: string) => {

@@ -33,7 +33,7 @@ export function EarningsCalendar() {
 
   useEffect(() => {
     const fetchEarnings = async () => {
-      setIsLoading(true);
+      if (earnings.length === 0) setIsLoading(true);
       try {
         const symbolsParam = portfolioSymbols.length > 0
           ? `&symbols=${portfolioSymbols.join(',')}`
@@ -65,6 +65,8 @@ export function EarningsCalendar() {
     };
 
     fetchEarnings();
+    const interval = setInterval(fetchEarnings, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [portfolioSymbols.join(',')]);
 
   const getDaysUntil = (date: string) => {

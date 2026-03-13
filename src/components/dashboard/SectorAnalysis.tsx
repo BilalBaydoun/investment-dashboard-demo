@@ -132,6 +132,8 @@ export function SectorAnalysis() {
     };
 
     fetchData();
+    const interval = setInterval(fetchData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [positions.map((p) => `${p.symbol}:${p.quantity}:${p.currentPrice}`).join(',')]);
 
   // Prepare chart data
