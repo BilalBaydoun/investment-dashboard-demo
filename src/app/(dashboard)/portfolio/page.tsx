@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
 import { AddPositionForm } from '@/components/portfolio/AddPositionForm';
@@ -75,6 +75,7 @@ export default function PortfolioPage() {
     depositCash,
     withdrawCash,
     setCashBalance,
+    updatePrices,
   } = usePortfolioStore();
 
   // Wait for hydration to complete
@@ -88,6 +89,86 @@ export default function PortfolioPage() {
   const totalGain = getTotalGain();
   const totalGainPercent = getTotalGainPercent();
   const cashBalance = getCashBalance();
+
+  // Auto-refresh prices every 5 minutes
+  const refreshPrices = useCallback(async () => {
+    if (!portfolio || portfolio.positions.length === 0) return;
+
+    const autoUpdatePositions = portfolio.positions.filter(p => !p.manualPriceOnly);
+    if (autoUpdatePositions.length === 0) return;
+
+    try {
+      const newPrices: Record<string, { price: number; previousClose: number }> = {};
+
+      const stockPositions = autoUpdatePositions.filter(p => p.assetType !== 'crypto' && p.assetType !== 'commodity');
+      const cryptoPositions = autoUpdatePositions.filter(p => p.assetType === 'crypto');
+      const commodityPositions = autoUpdatePositions.filter(p => p.assetType === 'commodity');
+
+      if (stockPositions.length > 0) {
+        const symbols = stockPositions.map(p => p.symbol).join(',');
+        const response = await fetch(`/api/stocks?symbols=${symbols}&action=quotes`);
+        const data = await response.json();
+        if (data.success && data.data) {
+          Object.entries(data.data).forEach(([symbol, quote]: [string, any]) => {
+            newPrices[symbol] = { price: quote.price, previousClose: quote.previousClose };
+          });
+        }
+      }
+
+      if (cryptoPositions.length > 0) {
+        const symbols = cryptoPositions.map(p => p.symbol).join(',');
+        const response = await fetch(`/api/crypto?symbols=${symbols}&action=quotes`);
+        const data = await response.json();
+        if (data.success && data.data) {
+          Object.entries(data.data).forEach(([symbol, quote]: [string, any]) => {
+            newPrices[symbol] = { price: quote.price, previousClose: quote.previousClose };
+          });
+        }
+      }
+
+      if (commodityPositions.length > 0) {
+        for (const position of commodityPositions) {
+          try {
+            const response = await fetch(`/api/commodities?symbol=${position.symbol}&action=quote`);
+            const data = await response.json();
+            if (data.success && data.data) {
+              let price = data.data.price;
+              switch (position.unit) {
+                case 'grams': price = data.data.pricePerGram; break;
+                case 'kg': price = data.data.pricePerKg; break;
+                case 'oz': price = data.data.pricePerOz; break;
+                case 'troy_oz': price = data.data.pricePerTroyOz; break;
+              }
+              newPrices[position.symbol] = { price, previousClose: price };
+            }
+          } catch { /* skip */ }
+        }
+      }
+
+      if (Object.keys(newPrices).length > 0) {
+        updatePrices(newPrices);
+      }
+    } catch (error) {
+      console.error('Failed to refresh prices:', error);
+    }
+  }, [portfolio, updatePrices]);
+
+  useEffect(() => {
+    if (!mounted || !portfolio || portfolio.positions.length === 0) return;
+
+    refreshPrices();
+    const interval = setInterval(refreshPrices, 5 * 60 * 1000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') refreshPrices();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [mounted, portfolio?.id]);
 
   const handleCashAction = () => {
     const amount = parseFloat(cashAmount);
