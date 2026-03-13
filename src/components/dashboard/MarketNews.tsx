@@ -50,7 +50,7 @@ export function MarketNews() {
 
     try {
       // Use fetchWithApiKeys to include News API key from localStorage
-      const response = await fetchWithApiKeys('/api/news?limit=4&category=market');
+      const response = await fetchWithApiKeys('/api/news?limit=6&category=market');
       const data = await response.json();
 
       if (!data.success) {
@@ -65,7 +65,7 @@ export function MarketNews() {
       }
 
       if (data.data && data.data.length > 0) {
-        const transformedNews: NewsItem[] = data.data.slice(0, 4).map((item: any, index: number) => ({
+        const transformedNews: NewsItem[] = data.data.slice(0, 6).map((item: any, index: number) => ({
           id: item.id || index.toString(),
           title: item.title,
           source: item.source || 'News',
