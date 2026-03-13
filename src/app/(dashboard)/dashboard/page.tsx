@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Header } from '@/components/layout/Header';
 import { AllocationChart } from '@/components/dashboard/AllocationChart';
 import { TopMovers } from '@/components/dashboard/TopMovers';
@@ -28,7 +28,8 @@ import {
   Calendar,
   Briefcase,
   Bitcoin,
-  Gem
+  Gem,
+  Clock
 } from 'lucide-react';
 import { usePortfolioStore } from '@/store/portfolioStore';
 import { useMarketStore } from '@/store/marketStore';
@@ -104,6 +105,72 @@ export default function DashboardPage() {
     : null;
   const goalAmountRemaining = activeGoalTarget ? activeGoalTarget - totalValue : null;
   const hasGoal = goal || savedGoal;
+
+  // Market status — US stock market hours (9:30 AM – 4:00 PM ET, weekdays)
+  const [marketStatus, setMarketStatus] = useState<{ isOpen: boolean; label: string; countdown: string }>({
+    isOpen: false, label: 'Market Closed', countdown: '',
+  });
+
+  useEffect(() => {
+    function getMarketStatus() {
+      const now = new Date();
+      const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const day = et.getDay(); // 0=Sun, 6=Sat
+      const h = et.getHours();
+      const m = et.getMinutes();
+      const s = et.getSeconds();
+      const timeInSec = h * 3600 + m * 60 + s;
+
+      const openSec = 9 * 3600 + 30 * 60;   // 9:30 AM
+      const closeSec = 16 * 3600;             // 4:00 PM
+
+      const fmt = (totalSec: number) => {
+        const hrs = Math.floor(totalSec / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+        if (hrs > 0) return `${hrs}h ${mins}m`;
+        if (mins > 0) return `${mins}m ${secs}s`;
+        return `${secs}s`;
+      };
+
+      if (day >= 1 && day <= 5 && timeInSec >= openSec && timeInSec < closeSec) {
+        // Market is open
+        const remaining = closeSec - timeInSec;
+        return { isOpen: true, label: 'Market Open', countdown: `Closes in ${fmt(remaining)}` };
+      } else {
+        // Market is closed — find next open
+        let daysUntilOpen = 0;
+        let nextDay = day;
+        let secUntilOpen = openSec - timeInSec;
+
+        if (timeInSec >= openSec || day === 0 || day === 6) {
+          // Already past open today or weekend — advance to next weekday
+          if (timeInSec >= openSec && day >= 1 && day <= 5) {
+            // After close on weekday
+            secUntilOpen = (24 * 3600 - timeInSec) + openSec;
+            daysUntilOpen = 0;
+            nextDay = day + 1;
+          } else {
+            secUntilOpen = (24 * 3600 - timeInSec) + openSec;
+            daysUntilOpen = 0;
+            nextDay = day + 1;
+          }
+          // Skip weekend days
+          while (nextDay % 7 === 0 || nextDay % 7 === 6) {
+            daysUntilOpen++;
+            nextDay++;
+          }
+        }
+
+        const totalRemaining = secUntilOpen + daysUntilOpen * 24 * 3600;
+        return { isOpen: false, label: 'Market Closed', countdown: `Opens in ${fmt(totalRemaining)}` };
+      }
+    }
+
+    setMarketStatus(getMarketStatus());
+    const interval = setInterval(() => setMarketStatus(getMarketStatus()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Calculate totals by asset type
   const stockEtfTotal = portfolio?.positions
@@ -295,7 +362,30 @@ export default function DashboardPage() {
                     {/* Top Row - Value and Actions */}
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Total Portfolio Value</p>
+                        <div className="flex items-center gap-3 mb-1">
+                          <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
+                          <div className={cn(
+                            'flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium',
+                            marketStatus.isOpen
+                              ? 'bg-green-500/10 text-green-500'
+                              : 'bg-muted text-muted-foreground'
+                          )}>
+                            <span className={cn(
+                              'h-1.5 w-1.5 rounded-full',
+                              marketStatus.isOpen ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'
+                            )} />
+                            {marketStatus.label}
+                            {marketStatus.countdown && (
+                              <>
+                                <span className="text-muted-foreground/60">•</span>
+                                <span className="flex items-center gap-0.5">
+                                  <Clock className="h-3 w-3" />
+                                  {marketStatus.countdown}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                         <p className="text-2xl md:text-4xl font-bold tracking-tight">{formatCurrency(totalValue)}</p>
                         <div className="flex items-center gap-3 mt-2">
                           <span className={cn(
