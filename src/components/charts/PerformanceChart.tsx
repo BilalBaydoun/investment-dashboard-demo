@@ -101,10 +101,8 @@ export function PerformanceChart({ title = 'Portfolio vs S&P 500' }: Performance
     return Math.max(days, 1);
   }, [portfolioStartDate]);
 
-  // Determine range based on days since start
+  // Determine range — always at least 3M so the chart has meaningful shape
   const range = useMemo(() => {
-    if (daysSinceStart <= 7) return '1W';
-    if (daysSinceStart <= 30) return '1M';
     if (daysSinceStart <= 90) return '3M';
     if (daysSinceStart <= 180) return '6M';
     return '1Y';
@@ -125,8 +123,8 @@ export function PerformanceChart({ title = 'Portfolio vs S&P 500' }: Performance
       const cached = loadChartCache(portfolio.id, range);
       const cacheIsValid = cached && (Date.now() - cached.timestamp) < CACHE_TTL_MS;
 
-      if (cacheIsValid && cached) {
-        // Show cached data immediately
+      if (cacheIsValid && cached && Object.keys(cached.positionHistories).length > 0) {
+        // Show cached data immediately (only if position histories exist)
         setSp500Data(cached.sp500Data);
         setCurrentSpyPrice(cached.currentSpyPrice);
         setPositionHistories(cached.positionHistories);
@@ -205,8 +203,8 @@ export function PerformanceChart({ title = 'Portfolio vs S&P 500' }: Performance
         if (cancelled) return;
         setPositionHistories(histories);
 
-        // Only save to cache if we got valid SPY data (don't cache failures)
-        if (sp500Result && sp500Result.data.length > 0) {
+        // Only save to cache if we got valid SPY data AND position histories
+        if (sp500Result && sp500Result.data.length > 0 && Object.keys(histories).length > 0) {
           saveChartCache({
             timestamp: Date.now(),
             sp500Data: sp500Result.data,
@@ -282,13 +280,25 @@ export function PerformanceChart({ title = 'Portfolio vs S&P 500' }: Performance
     return value;
   };
 
+  // Check if we have meaningful position history data
+  const hasPositionHistories = useMemo(() => {
+    return Object.values(positionHistories).some(h => h.length > 1);
+  }, [positionHistories]);
+
   // Calculate starting portfolio value (day 1)
+  // When position histories are empty, use totalCost as the starting value
   const startingValue = useMemo(() => {
-    if (sp500Data.length === 0) return totalValue;
+    if (sp500Data.length === 0) return totalCost || totalValue;
     const firstDate = sp500Data[0]?.date;
-    if (!firstDate) return totalValue;
-    return calculatePortfolioValueForDate(firstDate) || totalValue;
-  }, [sp500Data, positionHistories, portfolio, totalValue]);
+    if (!firstDate) return totalCost || totalValue;
+
+    if (hasPositionHistories) {
+      return calculatePortfolioValueForDate(firstDate) || totalCost || totalValue;
+    }
+
+    // No position histories — use cost basis as starting value
+    return totalCost || totalValue;
+  }, [sp500Data, positionHistories, portfolio, totalValue, totalCost, hasPositionHistories]);
 
   // Calculate what your money would be worth in S&P 500
   const sp500Comparison = useMemo(() => {
@@ -353,8 +363,30 @@ export function PerformanceChart({ title = 'Portfolio vs S&P 500' }: Performance
     const lastSp500Data = sp500Data[sp500Data.length - 1];
 
     // Build data from historical prices
-    const data = sp500Data.map((sp) => {
-      const portfolioValue = calculatePortfolioValueForDate(sp.date) || startingValue;
+    const data = sp500Data.map((sp, index) => {
+      let portfolioValue: number;
+
+      if (hasPositionHistories) {
+        // Use actual historical position data
+        portfolioValue = calculatePortfolioValueForDate(sp.date) || startingValue;
+      } else {
+        // No position histories — interpolate between cost basis and current value
+        // Use S&P 500 curve shape to distribute the portfolio's total return over time
+        const sp500PercentFromStart = (sp.close - sp500StartPrice) / sp500StartPrice;
+        const sp500TotalReturn = (lastSp500Data.close - sp500StartPrice) / sp500StartPrice;
+        const totalPortfolioReturn = totalValue - startingValue;
+
+        if (Math.abs(sp500TotalReturn) > 0.001) {
+          // Scale portfolio return proportionally to S&P 500 curve shape
+          const progressRatio = sp500PercentFromStart / sp500TotalReturn;
+          portfolioValue = startingValue + totalPortfolioReturn * progressRatio;
+        } else {
+          // S&P flat too — simple linear interpolation
+          const progress = index / Math.max(sp500Data.length - 1, 1);
+          portfolioValue = startingValue + totalPortfolioReturn * progress;
+        }
+      }
+
       const sp500PercentChange = (sp.close - sp500StartPrice) / sp500StartPrice;
       const hypotheticalSP500Value = startingValue * (1 + sp500PercentChange);
 
@@ -381,7 +413,7 @@ export function PerformanceChart({ title = 'Portfolio vs S&P 500' }: Performance
     }
 
     return data;
-  }, [sp500Data, startingValue, positionHistories, portfolio, totalValue, today, currentSpyPrice]);
+  }, [sp500Data, startingValue, positionHistories, hasPositionHistories, portfolio, totalValue, totalCost, today, currentSpyPrice]);
 
   // Get current portfolio value from chart data (last data point)
   const currentPortfolioValue = chartData.length > 0 ? chartData[chartData.length - 1].portfolio : totalValue;
