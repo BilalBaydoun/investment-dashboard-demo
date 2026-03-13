@@ -255,14 +255,118 @@ export function PriceChart({ symbol, data, isLoading: externalLoading, onTimeRan
       rsi: last.rsi,
       macd: last.macd,
       macdSignal: last.macdSignal,
+      macdHist: last.macdHist,
       sma20: last.sma20,
       sma50: last.sma50,
+      bbUpper: last.bbUpper,
+      bbLower: last.bbMiddle,
+      bbMiddle: last.bbMiddle,
+      close: last.close,
     };
   }, [technicalData]);
 
   const currentPrice = realTimeQuote?.price || (chartData[chartData.length - 1]?.close ?? 0);
   const priceChange = realTimeQuote?.change ?? 0;
   const priceChangePercent = realTimeQuote?.changePercent ?? 0;
+
+  // Technical outlook / prediction
+  const technicalOutlook = useMemo(() => {
+    if (!latestIndicators || !technicalData || technicalData.length < 20) return null;
+
+    const signals: { name: string; direction: 'bullish' | 'bearish' | 'neutral'; weight: number; detail: string }[] = [];
+    const price = latestIndicators.close;
+
+    // 1. RSI
+    if (latestIndicators.rsi !== undefined) {
+      const rsi = latestIndicators.rsi;
+      if (rsi < 30) signals.push({ name: 'RSI', direction: 'bullish', weight: 1.5, detail: `${rsi.toFixed(1)} — Oversold, likely bounce` });
+      else if (rsi < 40) signals.push({ name: 'RSI', direction: 'bullish', weight: 0.5, detail: `${rsi.toFixed(1)} — Approaching oversold` });
+      else if (rsi > 70) signals.push({ name: 'RSI', direction: 'bearish', weight: 1.5, detail: `${rsi.toFixed(1)} — Overbought, likely pullback` });
+      else if (rsi > 60) signals.push({ name: 'RSI', direction: 'bearish', weight: 0.5, detail: `${rsi.toFixed(1)} — Approaching overbought` });
+      else signals.push({ name: 'RSI', direction: 'neutral', weight: 0, detail: `${rsi.toFixed(1)} — Neutral zone` });
+    }
+
+    // 2. MACD crossover
+    if (latestIndicators.macd !== undefined && latestIndicators.macdSignal !== undefined) {
+      const diff = latestIndicators.macd - latestIndicators.macdSignal;
+      // Check if MACD just crossed (compare with previous)
+      const prev = technicalData[technicalData.length - 2];
+      const prevDiff = (prev?.macd !== undefined && prev?.macdSignal !== undefined) ? prev.macd - prev.macdSignal : diff;
+      const justCrossedUp = diff > 0 && prevDiff <= 0;
+      const justCrossedDown = diff < 0 && prevDiff >= 0;
+
+      if (justCrossedUp) signals.push({ name: 'MACD', direction: 'bullish', weight: 2, detail: 'Bullish crossover — strong buy signal' });
+      else if (justCrossedDown) signals.push({ name: 'MACD', direction: 'bearish', weight: 2, detail: 'Bearish crossover — strong sell signal' });
+      else if (diff > 0) signals.push({ name: 'MACD', direction: 'bullish', weight: 1, detail: 'Above signal line — upward momentum' });
+      else signals.push({ name: 'MACD', direction: 'bearish', weight: 1, detail: 'Below signal line — downward momentum' });
+    }
+
+    // 3. MACD histogram momentum
+    if (latestIndicators.macdHist !== undefined && technicalData.length >= 3) {
+      const curr = latestIndicators.macdHist;
+      const prev = technicalData[technicalData.length - 2]?.macdHist;
+      if (prev !== undefined) {
+        if (curr > prev && curr > 0) signals.push({ name: 'MACD Momentum', direction: 'bullish', weight: 0.5, detail: 'Increasing bullish momentum' });
+        else if (curr < prev && curr < 0) signals.push({ name: 'MACD Momentum', direction: 'bearish', weight: 0.5, detail: 'Increasing bearish momentum' });
+        else if (curr > prev && curr < 0) signals.push({ name: 'MACD Momentum', direction: 'bullish', weight: 0.5, detail: 'Bearish momentum fading' });
+        else if (curr < prev && curr > 0) signals.push({ name: 'MACD Momentum', direction: 'bearish', weight: 0.5, detail: 'Bullish momentum fading' });
+      }
+    }
+
+    // 4. SMA crossover (Golden / Death cross)
+    if (latestIndicators.sma20 !== undefined && latestIndicators.sma50 !== undefined) {
+      if (latestIndicators.sma20 > latestIndicators.sma50) {
+        signals.push({ name: 'SMA Cross', direction: 'bullish', weight: 1.5, detail: `SMA 20 ($${latestIndicators.sma20.toFixed(0)}) > SMA 50 ($${latestIndicators.sma50.toFixed(0)}) — Golden Cross` });
+      } else {
+        signals.push({ name: 'SMA Cross', direction: 'bearish', weight: 1.5, detail: `SMA 20 ($${latestIndicators.sma20.toFixed(0)}) < SMA 50 ($${latestIndicators.sma50.toFixed(0)}) — Death Cross` });
+      }
+    }
+
+    // 5. Price vs SMA 20 (short-term trend)
+    if (latestIndicators.sma20 !== undefined) {
+      if (price > latestIndicators.sma20) signals.push({ name: 'Price vs SMA20', direction: 'bullish', weight: 0.5, detail: `Price above SMA 20 — short-term uptrend` });
+      else signals.push({ name: 'Price vs SMA20', direction: 'bearish', weight: 0.5, detail: `Price below SMA 20 — short-term downtrend` });
+    }
+
+    // 6. Bollinger Band position
+    if (latestIndicators.bbUpper !== undefined && latestIndicators.bbLower !== undefined && latestIndicators.bbMiddle !== undefined) {
+      const bbWidth = latestIndicators.bbUpper - latestIndicators.bbLower;
+      const posInBand = bbWidth > 0 ? (price - latestIndicators.bbLower) / bbWidth : 0.5;
+      if (posInBand > 0.95) signals.push({ name: 'Bollinger', direction: 'bearish', weight: 1, detail: 'Price at upper band — likely pullback' });
+      else if (posInBand < 0.05) signals.push({ name: 'Bollinger', direction: 'bullish', weight: 1, detail: 'Price at lower band — likely bounce' });
+      else if (posInBand > 0.75) signals.push({ name: 'Bollinger', direction: 'bearish', weight: 0.5, detail: 'Price near upper band' });
+      else if (posInBand < 0.25) signals.push({ name: 'Bollinger', direction: 'bullish', weight: 0.5, detail: 'Price near lower band' });
+      else signals.push({ name: 'Bollinger', direction: 'neutral', weight: 0, detail: 'Price in middle of bands' });
+    }
+
+    // 7. Volume trend (last 5 vs prior 5)
+    if (technicalData.length >= 10) {
+      const recent5 = technicalData.slice(-5).reduce((s, d) => s + d.volume, 0) / 5;
+      const prior5 = technicalData.slice(-10, -5).reduce((s, d) => s + d.volume, 0) / 5;
+      if (recent5 > prior5 * 1.5 && priceChange > 0) signals.push({ name: 'Volume', direction: 'bullish', weight: 0.5, detail: 'Rising volume with price increase — confirms uptrend' });
+      else if (recent5 > prior5 * 1.5 && priceChange < 0) signals.push({ name: 'Volume', direction: 'bearish', weight: 0.5, detail: 'Rising volume with price decrease — confirms downtrend' });
+    }
+
+    // Score
+    let bullish = 0, bearish = 0, totalWeight = 0;
+    signals.forEach(s => {
+      totalWeight += s.weight;
+      if (s.direction === 'bullish') bullish += s.weight;
+      else if (s.direction === 'bearish') bearish += s.weight;
+    });
+
+    const score = totalWeight > 0 ? ((bullish - bearish) / totalWeight) : 0; // -1 to +1
+    const confidence = totalWeight > 0 ? Math.abs(bullish - bearish) / totalWeight * 100 : 0;
+
+    let outlook: 'Strong Buy' | 'Buy' | 'Neutral' | 'Sell' | 'Strong Sell';
+    if (score > 0.5) outlook = 'Strong Buy';
+    else if (score > 0.15) outlook = 'Buy';
+    else if (score > -0.15) outlook = 'Neutral';
+    else if (score > -0.5) outlook = 'Sell';
+    else outlook = 'Strong Sell';
+
+    return { signals, outlook, score, confidence, bullish, bearish, totalWeight };
+  }, [latestIndicators, technicalData, priceChange]);
 
   const firstPrice = chartData[0];
 
@@ -551,6 +655,73 @@ export function PriceChart({ symbol, data, isLoading: externalLoading, onTimeRan
               <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-500 inline-block rounded" /> MACD</span>
               <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-orange-500 inline-block rounded" /> Signal</span>
             </div>
+
+            {/* Technical Outlook Panel */}
+            {technicalOutlook && (
+              <div className="mt-4 border rounded-lg p-4 space-y-3">
+                {/* Header with outlook */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <h4 className="text-sm font-semibold">Technical Outlook</h4>
+                    <Badge className={cn(
+                      'text-xs font-bold',
+                      technicalOutlook.outlook === 'Strong Buy' ? 'bg-green-500 hover:bg-green-500' :
+                      technicalOutlook.outlook === 'Buy' ? 'bg-green-500/80 hover:bg-green-500/80' :
+                      technicalOutlook.outlook === 'Sell' ? 'bg-red-500/80 hover:bg-red-500/80' :
+                      technicalOutlook.outlook === 'Strong Sell' ? 'bg-red-500 hover:bg-red-500' :
+                      'bg-muted-foreground/50 hover:bg-muted-foreground/50'
+                    )}>
+                      {technicalOutlook.outlook}
+                    </Badge>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Confidence: {technicalOutlook.confidence.toFixed(0)}%
+                  </span>
+                </div>
+
+                {/* Score bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>Bearish</span>
+                    <span>Neutral</span>
+                    <span>Bullish</span>
+                  </div>
+                  <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                    {/* Background gradient */}
+                    <div className="absolute inset-0 flex">
+                      <div className="flex-1 bg-gradient-to-r from-red-500 to-red-500/30" />
+                      <div className="flex-1 bg-gradient-to-r from-red-500/30 via-muted to-green-500/30" />
+                      <div className="flex-1 bg-gradient-to-r from-green-500/30 to-green-500" />
+                    </div>
+                    {/* Indicator dot */}
+                    <div
+                      className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-foreground rounded-full shadow-sm transition-all"
+                      style={{ left: `${Math.min(Math.max((technicalOutlook.score + 1) / 2 * 100, 2), 98)}%`, transform: 'translate(-50%, -50%)' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Signal breakdown */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {technicalOutlook.signals.map((signal, i) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      <span className={cn(
+                        'h-1.5 w-1.5 rounded-full flex-shrink-0',
+                        signal.direction === 'bullish' ? 'bg-green-500' :
+                        signal.direction === 'bearish' ? 'bg-red-500' :
+                        'bg-muted-foreground'
+                      )} />
+                      <span className="font-medium w-24 flex-shrink-0">{signal.name}</span>
+                      <span className="text-muted-foreground truncate">{signal.detail}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[10px] text-muted-foreground/60 italic">
+                  Technical analysis is based on historical patterns and does not guarantee future results.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="h-[500px] flex items-center justify-center text-muted-foreground text-sm">
