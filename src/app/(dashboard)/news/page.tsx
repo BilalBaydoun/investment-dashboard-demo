@@ -57,14 +57,7 @@ export default function NewsPage() {
     else setIsLoading(true);
 
     try {
-      let url = '/api/news?limit=50';
-
-      if (filter === 'portfolio' && portfolioSymbols.length > 0) {
-        // Fetch news for each portfolio symbol
-        url = `/api/news?limit=50&symbol=${portfolioSymbols.join(',')}`;
-      }
-
-      const response = await fetchWithApiKeys(url);
+      const response = await fetchWithApiKeys('/api/news?limit=50');
       const data = await response.json();
 
       if (data.success && data.data?.length > 0) {
@@ -92,11 +85,11 @@ export default function NewsPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [filter, portfolioSymbols.join(',')]);
+  }, []);
 
   useEffect(() => {
     fetchNews();
-  }, [filter]);
+  }, []);
 
   const getCategory = (title: string): string => {
     const lower = title.toLowerCase();
@@ -135,15 +128,23 @@ export default function NewsPage() {
     }
   };
 
+  // Apply portfolio filter first (client-side filtering by related symbols)
+  const portfolioFilteredNews = filter === 'portfolio' && portfolioSymbols.length > 0
+    ? news.filter(n =>
+        n.relatedSymbols.some(s => portfolioSymbols.includes(s)) ||
+        portfolioSymbols.some(ps => n.title.toUpperCase().includes(ps))
+      )
+    : news;
+
   // Apply sentiment filter
   const filteredNews = sentimentFilter === 'all'
-    ? news
-    : news.filter(n => n.sentiment === sentimentFilter);
+    ? portfolioFilteredNews
+    : portfolioFilteredNews.filter(n => n.sentiment === sentimentFilter);
 
-  // Count sentiments
-  const bullishCount = news.filter(n => n.sentiment === 'bullish').length;
-  const bearishCount = news.filter(n => n.sentiment === 'bearish').length;
-  const neutralCount = news.filter(n => n.sentiment === 'neutral').length;
+  // Count sentiments (based on portfolio-filtered news)
+  const bullishCount = portfolioFilteredNews.filter(n => n.sentiment === 'bullish').length;
+  const bearishCount = portfolioFilteredNews.filter(n => n.sentiment === 'bearish').length;
+  const neutralCount = portfolioFilteredNews.filter(n => n.sentiment === 'neutral').length;
 
   return (
     <div className="min-h-screen">
@@ -197,7 +198,7 @@ export default function NewsPage() {
               className="text-xs h-7"
               onClick={() => setSentimentFilter('all')}
             >
-              All ({news.length})
+              All ({portfolioFilteredNews.length})
             </Button>
             <Button
               variant={sentimentFilter === 'bullish' ? 'secondary' : 'ghost'}
