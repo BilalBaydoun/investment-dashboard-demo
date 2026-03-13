@@ -107,6 +107,10 @@ async function fetchIntradayPrice(symbol: string, apiKey: string): Promise<{ pri
     const latestTime = Object.keys(timeSeries)[0];
     if (!latestTime) return null;
 
+    // Reject stale intraday data (not from today)
+    const today = getTodayET();
+    if (!latestTime.startsWith(today)) return null;
+
     const latest = timeSeries[latestTime];
     return {
       price: parseFloat(latest['4. close']),
