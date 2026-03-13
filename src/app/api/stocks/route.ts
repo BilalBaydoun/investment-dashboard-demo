@@ -27,6 +27,44 @@ const STOCK_NAMES: Record<string, string> = {
 
 const AV_BASE_URL = 'https://www.alphavantage.co/query';
 
+// ─── Yahoo Finance fallback (free, no API key needed) ───
+async function fetchYahooQuote(symbol: string): Promise<{
+  symbol: string; price: number; change: number; changePercent: number;
+  previousClose: number; open: number; high: number; low: number;
+  volume: number; name: string;
+} | null> {
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    const result = json?.chart?.result?.[0];
+    if (!result) return null;
+
+    const meta = result.meta;
+    const price = meta.regularMarketPrice;
+    const previousClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
+
+    return {
+      symbol: meta.symbol || symbol,
+      price,
+      change: price - previousClose,
+      changePercent: previousClose > 0 ? ((price - previousClose) / previousClose) * 100 : 0,
+      previousClose,
+      open: meta.regularMarketOpen ?? price,
+      high: meta.regularMarketDayHigh ?? price,
+      low: meta.regularMarketDayLow ?? price,
+      volume: meta.regularMarketVolume ?? 0,
+      name: meta.shortName || meta.longName || symbol,
+    };
+  } catch (err) {
+    console.error(`Yahoo Finance fallback failed for ${symbol}:`, err);
+    return null;
+  }
+}
+
 // Check for Alpha Vantage error/rate-limit responses
 function checkAVError(data: any): string | null {
   if (data['Error Message']) return data['Error Message'];
@@ -108,7 +146,7 @@ async function fetchAVQuote(symbol: string, apiKey: string) {
     let low = parseFloat(gq['04. low']);
     let volume = parseInt(gq['06. volume'], 10);
 
-    // If GLOBAL_QUOTE is stale (not today) and market is open, fetch intraday
+    // If GLOBAL_QUOTE is stale (not today) and market is open, try intraday then Yahoo
     const today = getTodayET();
     if (latestTradingDay !== today && isMarketHours()) {
       const intraday = await fetchIntradayPrice(symbol, apiKey);
@@ -119,6 +157,23 @@ async function fetchAVQuote(symbol: string, apiKey: string) {
         high = intraday.high;
         low = intraday.low;
         volume = intraday.volume;
+      } else {
+        // Both AV endpoints stale — try Yahoo Finance
+        const yahoo = await fetchYahooQuote(symbol);
+        if (yahoo) {
+          return {
+            symbol: yahoo.symbol,
+            open: yahoo.open,
+            high: yahoo.high,
+            low: yahoo.low,
+            price: yahoo.price,
+            volume: yahoo.volume,
+            latestTradingDay: today,
+            previousClose: yahoo.previousClose,
+            change: yahoo.change,
+            changePercent: yahoo.changePercent,
+          };
+        }
       }
     }
 
@@ -392,7 +447,29 @@ export async function GET(request: NextRequest) {
           });
         }
 
-        // API failed — fall back to cached data (stale OK)
+        // Alpha Vantage failed — try Yahoo Finance as fallback
+        const yahooQuote = await fetchYahooQuote(symbol);
+        if (yahooQuote) {
+          const quoteData = {
+            symbol,
+            name: STOCK_NAMES[symbol] || yahooQuote.name,
+            price: yahooQuote.price,
+            change: yahooQuote.change,
+            changePercent: yahooQuote.changePercent,
+            previousClose: yahooQuote.previousClose,
+            open: yahooQuote.open,
+            high: yahooQuote.high,
+            low: yahooQuote.low,
+            volume: yahooQuote.volume,
+            assetType: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'VOO'].includes(symbol) ? 'etf' : 'stock',
+            timestamp: new Date(),
+            source: 'Yahoo Finance',
+          };
+          setCachedData(symbol, 'quote', quoteData);
+          return NextResponse.json({ success: true, data: quoteData });
+        }
+
+        // Both APIs failed — fall back to cached data (stale OK)
         const cachedQuote = getStaleCachedData<any>(symbol, 'quote');
         if (cachedQuote) {
           return NextResponse.json({
@@ -422,6 +499,9 @@ export async function GET(request: NextRequest) {
           })
         );
 
+        // Collect symbols that AV failed for — batch Yahoo fallback
+        const avFailed: string[] = [];
+
         for (const { sym, avQuote } of results) {
           if (avQuote) {
             const quoteData = {
@@ -438,10 +518,40 @@ export async function GET(request: NextRequest) {
             quotes[sym] = quoteData;
             setCachedData(sym, 'quote', quoteData);
           } else {
-            // API failed — try cached data as fallback (stale OK)
-            const cached = getStaleCachedData<any>(sym, 'quote');
-            if (cached) {
-              quotes[sym] = { ...cached, stale: true };
+            avFailed.push(sym);
+          }
+        }
+
+        // Yahoo Finance fallback for symbols AV couldn't fetch
+        if (avFailed.length > 0) {
+          const yahooResults = await Promise.all(
+            avFailed.map(async (sym) => {
+              const yahoo = await fetchYahooQuote(sym);
+              return { sym, yahoo };
+            })
+          );
+          for (const { sym, yahoo } of yahooResults) {
+            if (yahoo) {
+              const quoteData = {
+                symbol: sym,
+                name: STOCK_NAMES[sym] || yahoo.name,
+                price: yahoo.price,
+                change: yahoo.change,
+                changePercent: yahoo.changePercent,
+                previousClose: yahoo.previousClose,
+                volume: yahoo.volume,
+                assetType: ['SPY', 'QQQ', 'IWM', 'DIA', 'VTI', 'VOO'].includes(sym) ? 'etf' : 'stock',
+                timestamp: new Date(),
+                source: 'Yahoo Finance',
+              };
+              quotes[sym] = quoteData;
+              setCachedData(sym, 'quote', quoteData);
+            } else {
+              // Both APIs failed — try stale cache
+              const cached = getStaleCachedData<any>(sym, 'quote');
+              if (cached) {
+                quotes[sym] = { ...cached, stale: true };
+              }
             }
           }
         }
