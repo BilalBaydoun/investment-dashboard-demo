@@ -145,45 +145,46 @@ export async function GET(request: NextRequest) {
 
         const quotes: Record<string, any> = {};
 
-        for (const sym of symbols) {
-          if (!CRYPTO_NAMES[sym]) continue;
+        const cryptoResults = await Promise.all(
+          symbols.filter(sym => CRYPTO_NAMES[sym]).map(async (sym) => {
+            try {
+              const response = await fetch(
+                `${AV_BASE}?function=CURRENCY_EXCHANGE_RATE&from_currency=${sym}&to_currency=USD&apikey=${apiKey}`
+              );
+              const data = await response.json();
 
-          try {
-            const response = await fetch(
-              `${AV_BASE}?function=CURRENCY_EXCHANGE_RATE&from_currency=${sym}&to_currency=USD&apikey=${apiKey}`
-            );
-            const data = await response.json();
-
-            if (!isErrorResponse(data)) {
-              const rateData = data['Realtime Currency Exchange Rate'];
-              if (rateData) {
-                const price = parseFloat(rateData['5. Exchange Rate']);
-                const quoteData = {
-                  symbol: sym,
-                  name: CRYPTO_NAMES[sym] || sym,
-                  price,
-                  change: 0,
-                  changePercent: 0,
-                  previousClose: price,
-                  volume: 0,
-                  marketCap: CRYPTO_MARKET_CAPS[sym] || 0,
-                  assetType: 'crypto',
-                  timestamp: new Date(),
-                };
-                quotes[sym] = quoteData;
-                setCachedData(`CRYPTO_${sym}`, 'quote', quoteData);
+              if (!isErrorResponse(data)) {
+                const rateData = data['Realtime Currency Exchange Rate'];
+                if (rateData) {
+                  const price = parseFloat(rateData['5. Exchange Rate']);
+                  const quoteData = {
+                    symbol: sym,
+                    name: CRYPTO_NAMES[sym] || sym,
+                    price,
+                    change: 0,
+                    changePercent: 0,
+                    previousClose: price,
+                    volume: 0,
+                    marketCap: CRYPTO_MARKET_CAPS[sym] || 0,
+                    assetType: 'crypto',
+                    timestamp: new Date(),
+                  };
+                  setCachedData(`CRYPTO_${sym}`, 'quote', quoteData);
+                  return { sym, data: quoteData };
+                }
               }
-            } else {
               // API failed — try stale cache
               const stale = getStaleCachedData<any>(`CRYPTO_${sym}`, 'quote');
-              if (stale) quotes[sym] = { ...stale, stale: true };
+              return stale ? { sym, data: { ...stale, stale: true } } : null;
+            } catch {
+              const stale = getStaleCachedData<any>(`CRYPTO_${sym}`, 'quote');
+              return stale ? { sym, data: { ...stale, stale: true } } : null;
             }
-          } catch {
-            const stale = getStaleCachedData<any>(`CRYPTO_${sym}`, 'quote');
-            if (stale) quotes[sym] = { ...stale, stale: true };
-          }
+          })
+        );
 
-          await new Promise(resolve => setTimeout(resolve, 250));
+        for (const result of cryptoResults) {
+          if (result) quotes[result.sym] = result.data;
         }
 
         return NextResponse.json({ success: true, data: quotes, source: 'Alpha Vantage' });

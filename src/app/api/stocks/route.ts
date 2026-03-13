@@ -343,9 +343,15 @@ export async function GET(request: NextRequest) {
 
         const quotes: Record<string, any> = {};
 
-        // Sequential GLOBAL_QUOTE calls per symbol, with cache fallback
-        for (const sym of symbols) {
-          const avQuote = await fetchAVQuote(sym, avApiKey);
+        // Parallel GLOBAL_QUOTE calls for all symbols
+        const results = await Promise.all(
+          symbols.map(async (sym) => {
+            const avQuote = await fetchAVQuote(sym, avApiKey);
+            return { sym, avQuote };
+          })
+        );
+
+        for (const { sym, avQuote } of results) {
           if (avQuote) {
             const quoteData = {
               symbol: sym,
@@ -359,7 +365,6 @@ export async function GET(request: NextRequest) {
               timestamp: new Date(avQuote.latestTradingDay),
             };
             quotes[sym] = quoteData;
-            // Cache the fresh quote for fallback
             setCachedData(sym, 'quote', quoteData);
           } else {
             // API failed — try cached data as fallback (stale OK)

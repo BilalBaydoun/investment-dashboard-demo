@@ -12,8 +12,10 @@ const CACHE_CONFIG = {
   history_default: 24 * 60 * 60 * 1000, // 24 hours default
 };
 
-// Cache directory
-const CACHE_DIR = path.join(process.cwd(), '.ticker-cache');
+// Cache directory — use /tmp on Vercel (process.cwd() is read-only)
+const CACHE_DIR = process.env.VERCEL
+  ? path.join('/tmp', '.ticker-cache')
+  : path.join(process.cwd(), '.ticker-cache');
 
 // Ensure cache directory exists
 function ensureCacheDir() {
