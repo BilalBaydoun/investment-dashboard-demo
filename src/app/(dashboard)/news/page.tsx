@@ -52,6 +52,10 @@ export default function NewsPage() {
   const portfolio = getActivePortfolio();
   const portfolioSymbols = portfolio?.positions.map(p => p.symbol) || [];
 
+  // Build symbol → company name lookup from portfolio positions
+  const symbolNames: Record<string, string> = {};
+  portfolio?.positions.forEach(p => { symbolNames[p.symbol] = p.name; });
+
   const fetchNews = useCallback(async (refresh = false) => {
     if (refresh) setIsRefreshing(true);
     else setIsLoading(true);
@@ -370,12 +374,15 @@ export default function NewsPage() {
                           </span>
                         </div>
 
-                        {/* Related symbols */}
+                        {/* Related companies */}
                         {item.relatedSymbols.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {item.relatedSymbols.slice(0, 5).map(s => (
-                              <Badge key={s} variant="secondary" className="text-[10px] h-4 px-1 font-mono">
-                                {s}
+                              <Badge key={s} variant="secondary" className="text-[10px] h-4 px-1.5">
+                                <span className="font-mono font-semibold">{s}</span>
+                                {symbolNames[s] && (
+                                  <span className="ml-1 font-normal text-muted-foreground">{symbolNames[s]}</span>
+                                )}
                               </Badge>
                             ))}
                             {item.relatedSymbols.length > 5 && (
