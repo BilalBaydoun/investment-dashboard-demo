@@ -232,12 +232,24 @@ export default function DashboardPage() {
   }, [portfolio, updatePrices, setLoading, setQuotes, recordSnapshot]);
 
   useEffect(() => {
-    if (portfolio && portfolio.positions.length > 0) {
-      refreshPrices();
-      const interval = setInterval(refreshPrices, 5 * 60 * 1000);
-      return () => clearInterval(interval);
-    }
-  }, [portfolio?.id]);
+    if (!mounted || !portfolio || portfolio.positions.length === 0) return;
+
+    refreshPrices();
+    const interval = setInterval(refreshPrices, 5 * 60 * 1000);
+
+    // Also refresh when tab becomes visible again
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshPrices();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [mounted, portfolio?.id]);
 
   if (!mounted) {
     return (
