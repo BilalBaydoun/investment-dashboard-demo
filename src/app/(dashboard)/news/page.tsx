@@ -16,7 +16,6 @@ import {
   Globe,
   AlertTriangle,
   Briefcase,
-  Filter,
   ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,6 +45,7 @@ export default function NewsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter] = useState<NewsFilter>('general');
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [sentimentFilter, setSentimentFilter] = useState<'all' | 'bullish' | 'bearish' | 'neutral'>('all');
 
   const { getActivePortfolio } = usePortfolioStore();
@@ -128,13 +128,24 @@ export default function NewsPage() {
     }
   };
 
-  // Apply portfolio filter first (client-side filtering by related symbols)
-  const portfolioFilteredNews = filter === 'portfolio' && portfolioSymbols.length > 0
-    ? news.filter(n =>
-        n.relatedSymbols.some(s => portfolioSymbols.includes(s)) ||
-        portfolioSymbols.some(ps => n.title.toUpperCase().includes(ps))
-      )
-    : news;
+  // Apply portfolio / symbol filter (client-side)
+  const portfolioFilteredNews = (() => {
+    if (filter !== 'portfolio' || portfolioSymbols.length === 0) return news;
+
+    // If a specific symbol is selected, filter to just that symbol
+    if (selectedSymbol) {
+      return news.filter(n =>
+        n.relatedSymbols.some(s => s.toUpperCase() === selectedSymbol) ||
+        n.title.toUpperCase().includes(selectedSymbol)
+      );
+    }
+
+    // Otherwise show all portfolio-related news
+    return news.filter(n =>
+      n.relatedSymbols.some(s => portfolioSymbols.includes(s)) ||
+      portfolioSymbols.some(ps => n.title.toUpperCase().includes(ps))
+    );
+  })();
 
   // Apply sentiment filter
   const filteredNews = sentimentFilter === 'all'
@@ -158,7 +169,7 @@ export default function NewsPage() {
             <Button
               variant={filter === 'general' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setFilter('general')}
+              onClick={() => { setFilter('general'); setSelectedSymbol(null); }}
               className="gap-1.5"
             >
               <Globe className="h-3.5 w-3.5" />
@@ -232,11 +243,30 @@ export default function NewsPage() {
         {/* Portfolio symbols indicator */}
         {filter === 'portfolio' && portfolioSymbols.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            <span className="text-xs text-muted-foreground mr-1">Tracking:</span>
+            <button
+              onClick={() => setSelectedSymbol(null)}
+              className={cn(
+                "text-[10px] h-5 px-2 rounded-full border font-medium transition-colors",
+                !selectedSymbol
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-transparent text-muted-foreground border-border hover:bg-muted"
+              )}
+            >
+              All
+            </button>
             {portfolioSymbols.map(s => (
-              <Badge key={s} variant="outline" className="text-[10px] h-5">
+              <button
+                key={s}
+                onClick={() => setSelectedSymbol(selectedSymbol === s ? null : s)}
+                className={cn(
+                  "text-[10px] h-5 px-2 rounded-full border font-mono font-medium transition-colors",
+                  selectedSymbol === s
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-transparent text-muted-foreground border-border hover:bg-muted"
+                )}
+              >
                 {s}
-              </Badge>
+              </button>
             ))}
           </div>
         )}
@@ -265,7 +295,9 @@ export default function NewsPage() {
               <Newspaper className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground">
                 {filter === 'portfolio'
-                  ? 'No news found for your portfolio positions'
+                  ? selectedSymbol
+                    ? `No news found for ${selectedSymbol}`
+                    : 'No news found for your portfolio positions'
                   : 'No news available at the moment'}
               </p>
               <Button variant="outline" size="sm" className="mt-3" onClick={() => fetchNews(true)}>
