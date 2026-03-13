@@ -28,7 +28,7 @@ interface PriceChartProps {
   onTimeRangeChange?: (range: TimeRange) => void;
 }
 
-const timeRanges: TimeRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y'];
+const timeRanges: TimeRange[] = ['1D', '1W', '1M', '3M', '6M', '1Y', '5Y', 'ALL'];
 
 type ChartDataPoint = { date: string; open: number; high: number; low: number; close: number; volume: number };
 

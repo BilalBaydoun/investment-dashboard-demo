@@ -43,6 +43,7 @@ function getTTL(type: 'quote' | 'history', range?: string): number {
     case '3M':
     case '6M':
     case '1Y':
+    case '5Y':
     case 'YTD':
     case 'ALL':
       return CACHE_CONFIG.history_3M;

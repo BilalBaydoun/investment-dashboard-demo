@@ -232,6 +232,7 @@ export async function GET(request: NextRequest) {
           case '3M': days = 90; break;
           case '6M': days = 180; break;
           case '1Y': days = 365; break;
+          case '5Y': days = 365 * 5; break;
           case 'ALL': days = 365 * 3; break;
         }
 

@@ -241,6 +241,7 @@ async function fetchAVHistory(symbol: string, range: string, apiKey: string) {
       case '3M': days = 100; break;
       case '6M': days = 190; break;
       case '1Y': days = 370; break;
+      case '5Y': days = 365 * 5 + 2; break;
       case 'YTD': {
         const now = new Date();
         days = Math.ceil((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / (1000 * 60 * 60 * 24)) + 5;

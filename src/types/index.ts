@@ -2,7 +2,7 @@
 export type AssetType = 'stock' | 'crypto' | 'etf' | 'bond' | 'real_estate' | 'cash' | 'commodity';
 export type QuantityUnit = 'units' | 'grams' | 'kg' | 'oz' | 'troy_oz';
 export type TransactionType = 'buy' | 'sell' | 'dividend' | 'deposit' | 'withdrawal';
-export type TimeRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | 'YTD' | 'ALL';
+export type TimeRange = '1D' | '1W' | '1M' | '3M' | '6M' | '1Y' | '5Y' | 'YTD' | 'ALL';
 export type SentimentType = 'bullish' | 'bearish' | 'neutral';
 
 // Portfolio Types
