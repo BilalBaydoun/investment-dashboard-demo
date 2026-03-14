@@ -13,8 +13,9 @@ import { ChatInterface } from '@/components/ai/ChatInterface';
 import { PriceChart } from '@/components/charts/PriceChart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Search, Brain, TrendingUp, MessageSquare, Sparkles, Loader2, BarChart3 } from 'lucide-react';
+import { Search, Brain, TrendingUp, MessageSquare, Sparkles, Loader2, BarChart3, Eye, Check } from 'lucide-react';
 import { usePortfolioStore } from '@/store/portfolioStore';
+import { useWatchlistStore } from '@/store/watchlistStore';
 import type { AISignal, PortfolioAnalysis } from '@/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,7 @@ function AnalysisContent() {
 
   const { getActivePortfolio, getTotalValue, getTotalCost } = usePortfolioStore();
   const portfolio = getActivePortfolio();
+  const { items: watchlistItems, addItem: addToWatchlist } = useWatchlistStore();
 
   // Wait for hydration to complete
   useEffect(() => {
@@ -259,11 +261,44 @@ function AnalysisContent() {
               <div className="space-y-6">
                 {/* Deep Fundamental Analysis Section Header */}
                 <div className="border-t pt-6">
-                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                    Deep Fundamental Analysis
-                    <Badge variant="outline" className="text-xs ml-2">Alpha Vantage</Badge>
-                  </h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-primary" />
+                      Deep Fundamental Analysis
+                      <Badge variant="outline" className="text-xs ml-2">Alpha Vantage</Badge>
+                    </h2>
+                    {(() => {
+                      const isInWatchlist = watchlistItems.some(item => item.symbol === selectedSymbol);
+                      return (
+                        <Button
+                          variant={isInWatchlist ? 'secondary' : 'outline'}
+                          size="sm"
+                          disabled={isInWatchlist}
+                          onClick={() => {
+                            addToWatchlist({
+                              symbol: selectedSymbol,
+                              name: aiSignal?.symbol || selectedSymbol,
+                              assetType: 'stock',
+                              alertEnabled: false,
+                            });
+                            toast.success(`${selectedSymbol} added to watchlist`);
+                          }}
+                        >
+                          {isInWatchlist ? (
+                            <>
+                              <Check className="h-4 w-4 mr-1.5" />
+                              In Watchlist
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-4 w-4 mr-1.5" />
+                              Add to Watchlist
+                            </>
+                          )}
+                        </Button>
+                      );
+                    })()}
+                  </div>
 
                   {/* Enhanced Analysis with Chart */}
                   <EnhancedAnalysis
