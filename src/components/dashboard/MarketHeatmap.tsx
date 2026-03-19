@@ -26,6 +26,7 @@ interface StockItem {
 
 // Top US stocks by approximate market cap (relative weights for treemap sizing)
 const TOP_STOCKS: { symbol: string; name: string; weight: number }[] = [
+  // Mega cap
   { symbol: 'AAPL', name: 'Apple', weight: 3400 },
   { symbol: 'MSFT', name: 'Microsoft', weight: 3100 },
   { symbol: 'NVDA', name: 'NVIDIA', weight: 2800 },
@@ -36,6 +37,7 @@ const TOP_STOCKS: { symbol: string; name: string; weight: number }[] = [
   { symbol: 'BRK.B', name: 'Berkshire', weight: 870 },
   { symbol: 'AVGO', name: 'Broadcom', weight: 800 },
   { symbol: 'LLY', name: 'Eli Lilly', weight: 750 },
+  // Large cap - financials & healthcare
   { symbol: 'JPM', name: 'JPMorgan', weight: 680 },
   { symbol: 'WMT', name: 'Walmart', weight: 650 },
   { symbol: 'V', name: 'Visa', weight: 600 },
@@ -48,6 +50,7 @@ const TOP_STOCKS: { symbol: string; name: string; weight: number }[] = [
   { symbol: 'JNJ', name: 'Johnson & Johnson', weight: 380 },
   { symbol: 'NFLX', name: 'Netflix', weight: 370 },
   { symbol: 'ABBV', name: 'AbbVie', weight: 350 },
+  { symbol: 'ORCL', name: 'Oracle', weight: 340 },
   { symbol: 'CRM', name: 'Salesforce', weight: 300 },
   { symbol: 'BAC', name: 'Bank of America', weight: 290 },
   { symbol: 'KO', name: 'Coca-Cola', weight: 280 },
@@ -60,22 +63,71 @@ const TOP_STOCKS: { symbol: string; name: string; weight: number }[] = [
   { symbol: 'CSCO', name: 'Cisco', weight: 210 },
   { symbol: 'WFC', name: 'Wells Fargo', weight: 200 },
   { symbol: 'MCD', name: 'McDonald\'s', weight: 200 },
-  { symbol: 'IBM', name: 'IBM', weight: 190 },
+  { symbol: 'IBM', name: 'IBM', weight: 195 },
   { symbol: 'GE', name: 'GE Aerospace', weight: 190 },
+  { symbol: 'LIN', name: 'Linde', weight: 185 },
   { symbol: 'CAT', name: 'Caterpillar', weight: 180 },
-  { symbol: 'INTC', name: 'Intel', weight: 160 },
+  { symbol: 'ISRG', name: 'Intuitive Surgical', weight: 175 },
   { symbol: 'DIS', name: 'Disney', weight: 170 },
   { symbol: 'QCOM', name: 'Qualcomm', weight: 170 },
   { symbol: 'VZ', name: 'Verizon', weight: 165 },
   { symbol: 'UBER', name: 'Uber', weight: 160 },
+  { symbol: 'INTC', name: 'Intel', weight: 160 },
   { symbol: 'GS', name: 'Goldman Sachs', weight: 155 },
+  { symbol: 'NOW', name: 'ServiceNow', weight: 155 },
+  { symbol: 'INTU', name: 'Intuit', weight: 150 },
+  { symbol: 'AXP', name: 'American Express', weight: 150 },
+  { symbol: 'PFE', name: 'Pfizer', weight: 148 },
+  { symbol: 'TXN', name: 'Texas Instruments', weight: 145 },
   { symbol: 'NKE', name: 'Nike', weight: 140 },
   { symbol: 'BA', name: 'Boeing', weight: 140 },
+  { symbol: 'BKNG', name: 'Booking Holdings', weight: 140 },
   { symbol: 'T', name: 'AT&T', weight: 135 },
   { symbol: 'MS', name: 'Morgan Stanley', weight: 130 },
+  { symbol: 'SPGI', name: 'S&P Global', weight: 130 },
+  { symbol: 'HON', name: 'Honeywell', weight: 128 },
+  { symbol: 'AMGN', name: 'Amgen', weight: 125 },
+  { symbol: 'LOW', name: 'Lowe\'s', weight: 125 },
+  { symbol: 'BLK', name: 'BlackRock', weight: 122 },
   { symbol: 'PYPL', name: 'PayPal', weight: 120 },
-  { symbol: 'NEE', name: 'NextEra', weight: 115 },
-  { symbol: 'RTX', name: 'RTX Corp', weight: 110 },
+  { symbol: 'NEE', name: 'NextEra Energy', weight: 118 },
+  { symbol: 'RTX', name: 'RTX Corp', weight: 115 },
+  { symbol: 'SBUX', name: 'Starbucks', weight: 112 },
+  { symbol: 'UPS', name: 'UPS', weight: 110 },
+  { symbol: 'DE', name: 'John Deere', weight: 108 },
+  { symbol: 'SCHW', name: 'Charles Schwab', weight: 105 },
+  { symbol: 'PLTR', name: 'Palantir', weight: 105 },
+  { symbol: 'AMAT', name: 'Applied Materials', weight: 102 },
+  { symbol: 'SYK', name: 'Stryker', weight: 100 },
+  { symbol: 'MDT', name: 'Medtronic', weight: 98 },
+  { symbol: 'ADP', name: 'ADP', weight: 96 },
+  { symbol: 'GILD', name: 'Gilead Sciences', weight: 95 },
+  { symbol: 'MMC', name: 'Marsh McLennan', weight: 93 },
+  { symbol: 'LRCX', name: 'Lam Research', weight: 92 },
+  { symbol: 'TGT', name: 'Target', weight: 90 },
+  { symbol: 'CB', name: 'Chubb', weight: 88 },
+  { symbol: 'MU', name: 'Micron', weight: 87 },
+  { symbol: 'PANW', name: 'Palo Alto Networks', weight: 85 },
+  { symbol: 'CI', name: 'Cigna', weight: 84 },
+  { symbol: 'SO', name: 'Southern Company', weight: 82 },
+  { symbol: 'DUK', name: 'Duke Energy', weight: 80 },
+  { symbol: 'COP', name: 'ConocoPhillips', weight: 80 },
+  { symbol: 'FDX', name: 'FedEx', weight: 78 },
+  { symbol: 'SNAP', name: 'Snap', weight: 75 },
+  { symbol: 'COIN', name: 'Coinbase', weight: 73 },
+  { symbol: 'SHOP', name: 'Shopify', weight: 72 },
+  { symbol: 'SQ', name: 'Block', weight: 70 },
+  { symbol: 'ABNB', name: 'Airbnb', weight: 70 },
+  { symbol: 'SNOW', name: 'Snowflake', weight: 68 },
+  { symbol: 'CRWD', name: 'CrowdStrike', weight: 68 },
+  { symbol: 'RIVN', name: 'Rivian', weight: 65 },
+  { symbol: 'F', name: 'Ford', weight: 62 },
+  { symbol: 'GM', name: 'General Motors', weight: 60 },
+  { symbol: 'DELL', name: 'Dell', weight: 58 },
+  { symbol: 'SPOT', name: 'Spotify', weight: 55 },
+  { symbol: 'DDOG', name: 'Datadog', weight: 52 },
+  { symbol: 'NET', name: 'Cloudflare', weight: 50 },
+  { symbol: 'ZS', name: 'Zscaler', weight: 48 },
 ];
 
 function getHeatmapBg(change: number): string {
@@ -289,17 +341,21 @@ export function MarketHeatmap() {
               {treemapRects.map((rect) => {
                 const { item } = rect;
                 const minDim = Math.min(rect.w, rect.h);
-                const showLogo = minDim > 5;
-                const showSymbol = minDim > 4;
-                const showPercent = minDim > 3.5;
-                const showName = minDim > 8;
-                const fontSize = minDim > 12 ? 'text-base' : minDim > 7 ? 'text-sm' : 'text-xs';
+                const area = rect.w * rect.h;
+
+                // Tiered display based on tile size
+                const isLarge = minDim > 10 && area > 150;
+                const isMedium = minDim > 6 && area > 50;
+                const isSmall = minDim > 3.5 && area > 15;
+                const isTiny = !isSmall;
+
                 return (
                   <Tooltip key={item.symbol}>
                     <TooltipTrigger asChild>
                       <button
                         className={cn(
-                          'absolute flex flex-col items-center justify-center gap-0.5 transition-opacity hover:opacity-80 cursor-pointer border-[0.5px] border-black/20',
+                          'absolute flex flex-col items-center justify-center overflow-hidden transition-opacity hover:opacity-80 cursor-pointer border-[0.5px] border-black/20',
+                          isLarge ? 'gap-0.5' : 'gap-0',
                           getHeatmapBg(item.changePercent),
                           getHeatmapTextColor(item.changePercent)
                         )}
@@ -308,32 +364,65 @@ export function MarketHeatmap() {
                           top: `${rect.y}%`,
                           width: `${rect.w}%`,
                           height: `${rect.h}%`,
+                          padding: isTiny ? '1px' : '2px',
                         }}
                         onClick={() => router.push(`/analysis?symbol=${item.symbol}`)}
                       >
-                        {showLogo && (
-                          <AssetLogo
-                            symbol={item.symbol}
-                            name={item.name}
-                            assetType="stock"
-                            size={minDim > 12 ? 'lg' : minDim > 7 ? 'md' : 'sm'}
-                            className="mb-0.5"
-                          />
+                        {/* Large tiles: logo + symbol + percent + name */}
+                        {isLarge && (
+                          <>
+                            <AssetLogo
+                              symbol={item.symbol}
+                              name={item.name}
+                              assetType="stock"
+                              size={minDim > 14 ? 'lg' : 'md'}
+                              className="mb-0.5"
+                            />
+                            <span className={cn('font-bold leading-tight', minDim > 14 ? 'text-base' : 'text-sm')}>
+                              {item.symbol}
+                            </span>
+                            <span className="text-sm font-semibold leading-tight">
+                              {item.changePercent >= 0 ? '+' : ''}{item.changePercent.toFixed(2)}%
+                            </span>
+                            {minDim > 12 && area > 250 && (
+                              <span className="text-[10px] opacity-80 leading-tight truncate max-w-[95%]">
+                                {item.name}
+                              </span>
+                            )}
+                          </>
                         )}
-                        {showSymbol && (
-                          <span className={cn('font-bold leading-tight', fontSize)}>
-                            {item.symbol}
-                          </span>
+                        {/* Medium tiles: logo + symbol + percent */}
+                        {!isLarge && isMedium && (
+                          <>
+                            <AssetLogo
+                              symbol={item.symbol}
+                              name={item.name}
+                              assetType="stock"
+                              size="sm"
+                            />
+                            <span className="text-xs font-bold leading-none mt-0.5">
+                              {item.symbol}
+                            </span>
+                            <span className="text-[10px] font-semibold leading-none">
+                              {item.changePercent >= 0 ? '+' : ''}{item.changePercent.toFixed(2)}%
+                            </span>
+                          </>
                         )}
-                        {showPercent && (
-                          <span className={cn('font-semibold leading-tight', minDim > 7 ? 'text-sm' : 'text-[10px]')}>
-                            {item.changePercent >= 0 ? '+' : ''}
-                            {item.changePercent.toFixed(2)}%
-                          </span>
+                        {/* Small tiles: symbol + percent only */}
+                        {!isLarge && !isMedium && isSmall && (
+                          <>
+                            <span className="text-[10px] font-bold leading-none">
+                              {item.symbol}
+                            </span>
+                            <span className="text-[9px] font-semibold leading-none">
+                              {item.changePercent >= 0 ? '+' : ''}{item.changePercent.toFixed(1)}%
+                            </span>
+                          </>
                         )}
-                        {showName && (
-                          <span className="text-[10px] opacity-80 leading-tight truncate max-w-[90%]">
-                            {item.name}
+                        {/* Tiny tiles: just colored box, info on hover */}
+                        {isTiny && minDim > 2 && (
+                          <span className="text-[7px] font-bold leading-none truncate max-w-full">
+                            {item.symbol.length <= 3 ? item.symbol : ''}
                           </span>
                         )}
                       </button>
