@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LayoutGrid, RefreshCw, Loader2 } from 'lucide-react';
+import { LayoutGrid, RefreshCw, Loader2, Maximize2, Minimize2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -26,17 +26,17 @@ interface StockItem {
 
 // Top US stocks by approximate market cap (relative weights for treemap sizing)
 const TOP_STOCKS: { symbol: string; name: string; weight: number }[] = [
-  // Mega cap
-  { symbol: 'AAPL', name: 'Apple', weight: 3400 },
-  { symbol: 'MSFT', name: 'Microsoft', weight: 3100 },
-  { symbol: 'NVDA', name: 'NVIDIA', weight: 2800 },
-  { symbol: 'GOOGL', name: 'Alphabet', weight: 2100 },
-  { symbol: 'AMZN', name: 'Amazon', weight: 2000 },
-  { symbol: 'META', name: 'Meta', weight: 1500 },
-  { symbol: 'TSLA', name: 'Tesla', weight: 900 },
-  { symbol: 'BRK.B', name: 'Berkshire', weight: 870 },
-  { symbol: 'AVGO', name: 'Broadcom', weight: 800 },
-  { symbol: 'LLY', name: 'Eli Lilly', weight: 750 },
+  // Mega cap (compressed weights so smaller stocks get more space)
+  { symbol: 'AAPL', name: 'Apple', weight: 1400 },
+  { symbol: 'MSFT', name: 'Microsoft', weight: 1300 },
+  { symbol: 'NVDA', name: 'NVIDIA', weight: 1200 },
+  { symbol: 'GOOGL', name: 'Alphabet', weight: 1000 },
+  { symbol: 'AMZN', name: 'Amazon', weight: 950 },
+  { symbol: 'META', name: 'Meta', weight: 800 },
+  { symbol: 'TSLA', name: 'Tesla', weight: 600 },
+  { symbol: 'BRK.B', name: 'Berkshire', weight: 580 },
+  { symbol: 'AVGO', name: 'Broadcom', weight: 560 },
+  { symbol: 'LLY', name: 'Eli Lilly', weight: 540 },
   // Large cap - financials & healthcare
   { symbol: 'JPM', name: 'JPMorgan', weight: 680 },
   { symbol: 'WMT', name: 'Walmart', weight: 650 },
@@ -260,6 +260,7 @@ function layoutStrip(
 export function MarketHeatmap() {
   const [stocks, setStocks] = useState<StockItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const router = useRouter();
 
   const fetchData = async () => {
@@ -306,9 +307,21 @@ export function MarketHeatmap() {
   const decliners = stocks.filter((s) => s.changePercent < 0).length;
   const unchanged = stocks.filter((s) => s.changePercent === 0).length;
 
+  // Close fullscreen on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
+
   return (
-    <Card>
-      <CardHeader>
+    <div className={cn(
+      isFullscreen && 'fixed inset-0 z-50 bg-background p-4 overflow-auto'
+    )}>
+    <Card className={cn(isFullscreen && 'h-full flex flex-col')}>
+      <CardHeader className={cn(isFullscreen && 'shrink-0')}>
         <CardTitle className="flex items-center justify-between">
           <span className="flex items-center gap-2">
             <LayoutGrid className="h-5 w-5" />
@@ -329,15 +342,26 @@ export function MarketHeatmap() {
                 <RefreshCw className="h-4 w-4" />
               )}
             </Button>
+            <Button variant="ghost" size="icon" onClick={() => setIsFullscreen(!isFullscreen)}>
+              {isFullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </Button>
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className={cn(isFullscreen && 'flex-1 flex flex-col min-h-0')}>
         {isLoading && stocks.length === 0 ? (
-          <Skeleton className="w-full aspect-[16/9]" />
+          <Skeleton className={cn('w-full', isFullscreen ? 'flex-1' : 'aspect-[16/9]')} />
         ) : (
           <TooltipProvider delayDuration={100}>
-            <div className="relative w-full aspect-[16/9] rounded-lg overflow-hidden border border-border">
+           <div className={cn(isFullscreen && 'flex flex-col h-full')}>
+            <div className={cn(
+              'relative w-full rounded-lg overflow-hidden border border-border',
+              isFullscreen ? 'flex-1 min-h-0' : 'aspect-[16/9]'
+            )}>
               {treemapRects.map((rect) => {
                 const { item } = rect;
                 const minDim = Math.min(rect.w, rect.h);
@@ -461,9 +485,11 @@ export function MarketHeatmap() {
             <p className="text-center text-xs text-muted-foreground mt-1">
               Tile size represents relative market cap. Click any stock to analyze.
             </p>
+           </div>
           </TooltipProvider>
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }
