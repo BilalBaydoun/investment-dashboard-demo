@@ -165,36 +165,36 @@ export function AssetLogo({ symbol, name, assetType, size = 'md', className }: A
   const [showFallback, setShowFallback] = useState(true);
   const upperSymbol = symbol.toUpperCase();
 
-  // Get domain for Clearbit if available
+  // Get domain for Clearbit fallback if available
   const domain = COMPANY_DOMAINS[upperSymbol];
 
-  // Determine logo URL based on asset type
+  // Determine logo URL - try Parqet first (works for stock symbols), then Clearbit
   useEffect(() => {
     if (assetType === 'crypto') {
       const cryptoLogo = CRYPTO_LOGO_MAP[upperSymbol];
       if (cryptoLogo) {
         setImgSrc(cryptoLogo);
       }
-    } else if (domain) {
-      // Use Clearbit for known domains
-      setImgSrc(`https://logo.clearbit.com/${domain}`);
     } else {
-      // Use Clearbit with lowercase symbol as domain guess
-      setImgSrc(`https://logo.clearbit.com/${upperSymbol.toLowerCase()}.com`);
+      // Use Parqet's symbol-based logo service (reliable, no API key needed)
+      setImgSrc(`https://assets.parqet.com/logos/symbol/${upperSymbol}`);
     }
-  }, [upperSymbol, assetType, domain]);
+  }, [upperSymbol, assetType]);
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    // Only hide fallback if image is valid (not tiny placeholder)
     if (img.naturalWidth > 10 && img.naturalHeight > 10) {
       setShowFallback(false);
     }
   };
 
   const handleImageError = () => {
-    // If image fails, show fallback
-    setShowFallback(true);
+    // Parqet failed — try Clearbit as fallback
+    if (imgSrc?.includes('parqet.com') && domain) {
+      setImgSrc(`https://logo.clearbit.com/${domain}`);
+    } else {
+      setShowFallback(true);
+    }
   };
 
   const bgColor = getSymbolColor(upperSymbol);
